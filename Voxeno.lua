@@ -848,6 +848,154 @@ function Library:CreateWindow(opts)
 			return Toggle
 		end
 
+		-- Slider: Tab:Slider({ Title, Desc, Min, Max, Default, Step, Suffix, Callback })
+		function Tab:Slider(o)
+			o = o or {}
+			local min = o.Min or 0
+			local max = o.Max or 100
+			if max <= min then max = min + 1 end
+			local step = o.Step or o.Increment or 1
+			if step <= 0 then step = 1 end
+			local suffix = o.Suffix and tostring(o.Suffix) or ""
+			local hasDesc = o.Desc and o.Desc ~= ""
+			local height = hasDesc and 68 or 54
+
+			local card = new("Frame", {
+				BackgroundColor3 = Theme.Surface,
+				Size = UDim2.new(1, 0, 0, height),
+			}, page)
+			corner(card, 8)
+			stroke(card, Theme.Stroke)
+
+			new("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(12, 8),
+				Size = UDim2.new(1, -100, 0, 18),
+				Text = tostring(o.Title or "Slider"),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Font = Enum.Font.GothamMedium,
+				TextSize = 13,
+				TextColor3 = Theme.Text,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, card)
+
+			if hasDesc then
+				new("TextLabel", {
+					BackgroundTransparency = 1,
+					Position = UDim2.fromOffset(12, 26),
+					Size = UDim2.new(1, -24, 0, 16),
+					Text = tostring(o.Desc),
+					TextXAlignment = Enum.TextXAlignment.Left,
+					Font = Enum.Font.Gotham,
+					TextSize = 11,
+					TextColor3 = Theme.SubText,
+					TextTruncate = Enum.TextTruncate.AtEnd,
+				}, card)
+			end
+
+			local valueLabel = new("TextLabel", {
+				BackgroundTransparency = 1,
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -12, 0, 8),
+				Size = UDim2.fromOffset(80, 18),
+				TextXAlignment = Enum.TextXAlignment.Right,
+				Font = Enum.Font.GothamMedium,
+				TextSize = 12,
+				TextColor3 = Theme.SubText,
+			}, card)
+
+			-- hit area (bigger than the visible track so it's easy to grab on mobile)
+			local hit = new("TextButton", {
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, 12, 1, -24),
+				Size = UDim2.new(1, -24, 0, 18),
+				Text = "",
+				AutoButtonColor = false,
+			}, card)
+
+			local track = new("Frame", {
+				BackgroundColor3 = Theme.Stroke,
+				AnchorPoint = Vector2.new(0, 0.5),
+				Position = UDim2.fromScale(0, 0.5),
+				Size = UDim2.new(1, 0, 0, 6),
+				BorderSizePixel = 0,
+			}, hit)
+			corner(track, 3)
+
+			local fill = new("Frame", {
+				BackgroundColor3 = accent,
+				Size = UDim2.fromScale(0, 1),
+				BorderSizePixel = 0,
+			}, track)
+			corner(fill, 3)
+
+			local knob = new("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0, 0.5),
+				Size = UDim2.fromOffset(14, 14),
+			}, track)
+			corner(knob, 7)
+
+			local function snap(v)
+				v = math.floor((v - min) / step + 0.5) * step + min
+				v = math.clamp(v, min, max)
+				return math.floor(v * 1e6 + 0.5) / 1e6 -- remove float noise
+			end
+
+			local value = snap(o.Default or min)
+			local Slider = {}
+
+			local function render()
+				local ratio = (value - min) / (max - min)
+				fill.Size = UDim2.fromScale(ratio, 1)
+				knob.Position = UDim2.fromScale(ratio, 0.5)
+				valueLabel.Text = tostring(value) .. suffix
+			end
+
+			local function setValue(v, silent)
+				v = snap(v)
+				if v == value then return end
+				value = v
+				render()
+				if not silent then safeCall(o.Callback, value) end
+			end
+
+			local function updateFromX(x)
+				local w = track.AbsoluteSize.X
+				if w <= 0 then return end
+				local ratio = math.clamp((x - track.AbsolutePosition.X) / w, 0, 1)
+				setValue(min + ratio * (max - min))
+			end
+
+			local dragging = false
+			hit.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					dragging = true
+					page.ScrollingEnabled = false -- don't scroll the page while sliding
+					updateFromX(input.Position.X)
+					input.Changed:Connect(function()
+						if input.UserInputState == Enum.UserInputState.End then
+							dragging = false
+							page.ScrollingEnabled = true
+						end
+					end)
+				end
+			end)
+
+			table.insert(State.Conns, UserInputService.InputChanged:Connect(function(input)
+				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					updateFromX(input.Position.X)
+				end
+			end))
+
+			render()
+
+			function Slider:Set(v) setValue(v) end
+			function Slider:Get() return value end
+			return Slider
+		end
+
 		-- Label: Tab:Label("text")  or  Tab:Label({ Text = "text" })
 		function Tab:Label(o)
 			if type(o) == "string" then o = { Text = o } end
@@ -1026,10 +1174,22 @@ Main:Toggle({
 	end,
 })
 
+Settings:Slider({
+	Title = "Walk Speed",
+	Desc = "Drag to change the value",
+	Min = 16,
+	Max = 100,
+	Default = 16,
+	Step = 1,
+	Suffix = "",
+	Callback = function(value)
+		print("Slider:", value)
+	end,
+})
+
 Settings:Toggle({
 	Title = "Another Option",
 	Callback = function(state) print("Option:", state) end,
 })
 
 return Library
- 
