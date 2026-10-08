@@ -8,8 +8,29 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 
+--------------------------------------------------------------------
+-- Anti-duplicate protection
+-- The check and the lock happen in the same instant (no yielding in
+-- between), so even if the script is executed many times at once,
+-- only the first run builds a UI. The others just get the existing one.
+--------------------------------------------------------------------
+local env = (getgenv and getgenv()) or _G
+
+local existing = env.__SimpleUI
+if existing then
+	local stale = existing.Mounted and (not existing.Gui or not existing.Gui.Parent)
+	if not stale then
+		return existing.Library -- already running: build nothing, create no window / open button
+	end
+end
+
 local Library = {}
-Library.LucideIcons = nil   -- WindUI.Creator.Icons.Icons.lucide
+local State = { Library = Library, Gui = nil, Mounted = false, Conns = {} }
+env.__SimpleUI = State -- lock
+
+Library.Window = nil
+Library.LucideIcons = nil   -- lucide table: WindUI.Creator.Icons.Icons.lucide
+Library.WindUI = nil        -- or the whole WindUI object (preferred, most reliable)
 Library.IconResolver = nil  -- optional: function(name) return {Image=..., RectSize=..., RectOffset=...} end
 
 --------------------------------------------------------------------
@@ -61,8 +82,8 @@ local Theme = {
 
 --------------------------------------------------------------------
 -- ScreenGui
--- Everything is built while the gui is NOT parented, then mounted once
--- on the next frame, so the whole UI appears instantly in one go.
+-- Built un-parented and mounted once on the next frame, so the whole
+-- UI appears instantly in one go.
 --------------------------------------------------------------------
 local gui = new("ScreenGui", {
 	Name = "SimpleUI",
@@ -70,6 +91,7 @@ local gui = new("ScreenGui", {
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	DisplayOrder = 999,
 })
+State.Gui = gui
 
 local function mountGui()
 	if gui.Parent then return end
@@ -83,8 +105,31 @@ local function mountGui()
 	if not ok then
 		gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
+	State.Mounted = true
+
+	-- remove leftovers of older runs / older versions (only one SimpleUI may exist)
+	local parent = gui.Parent
+	if parent then
+		for _, child in ipairs(parent:GetChildren()) do
+			if child ~= gui and child.Name == "SimpleUI" and child:IsA("ScreenGui") then
+				child:Destroy()
+			end
+		end
+	end
 end
 task.defer(mountGui)
+
+local function destroyAll()
+	for _, c in ipairs(State.Conns) do
+		pcall(function() c:Disconnect() end)
+	end
+	State.Conns = {}
+	pcall(function() gui:Destroy() end)
+	if env.__SimpleUI == State then env.__SimpleUI = nil end -- release the lock
+	Library.Window = nil
+end
+
+function Library:Destroy() destroyAll() end
 
 --------------------------------------------------------------------
 -- Icons (Lucide / rbxassetid / Emoji)
@@ -93,40 +138,93 @@ function Library:SetIcons(lucideTable)
 	Library.LucideIcons = lucideTable
 end
 
+function Library:SetWindUI(windui)
+	Library.WindUI = windui
+end
+
+local function toAsset(v)
+	if type(v) == "number" then return "rbxassetid://" .. v end
+	if type(v) == "string" then
+		if v:match("^%d+$") then return "rbxassetid://" .. v end
+		return v
+	end
+	return nil
+end
+
+-- Understands the different shapes WindUI uses for icon data
+local function parseIcon(data, set)
+	if data == nil then return nil end
+	if type(data) == "string" or type(data) == "number" then
+		local img = toAsset(data)
+		return img and { Image = img } or nil
+	end
+	if type(data) ~= "table" then return nil end
+
+	local meta = data
+	if type(data[2]) == "table" then meta = data[2] end -- {sheetId, {ImageRectSize, ImageRectPosition}}
+
+	local img = data.Image or data.Id or data.id or data[1]
+	local size = meta.ImageRectSize or data.ImageRectSize or meta.RectSize or data.RectSize
+	local off = meta.ImageRectPosition or meta.ImageRectOffset or data.ImageRectPosition
+		or data.ImageRectOffset or meta.RectOffset or data.RectOffset
+
+	-- Image can be an index into set.Spritesheets
+	local sheets = type(set) == "table" and set.Spritesheets or nil
+	if sheets and (type(img) == "number" or (type(img) == "string" and img:match("^%d+$"))) then
+		local sheet = sheets[tostring(img)] or sheets[tonumber(img)]
+		if sheet then img = sheet end
+	end
+
+	img = toAsset(img)
+	if not img then return nil end
+	return { Image = img, RectSize = size, RectOffset = off }
+end
+
 local iconCache = {}
+local warned = {}
 
 local function resolveIcon(name)
 	if type(name) ~= "string" or name == "" then return nil end
 	if iconCache[name] ~= nil then return iconCache[name] or nil end
 
 	local result
+
 	if name:find("^rbxassetid://") or name:find("^rbxasset://") then
 		result = { Image = name }
 	else
+		-- custom resolver
 		if Library.IconResolver then
 			local ok, res = pcall(Library.IconResolver, name)
 			if ok and res then result = res end
 		end
 
-		local set = Library.LucideIcons
-		if not result and type(set) == "table" then
-			local clean = (name:gsub("^lucide[-:]", ""))
-			local data = set[name] or set[clean] or set[clean:lower()]
-			if type(data) == "string" then
-				result = { Image = data }
-			elseif type(data) == "number" then
-				result = { Image = "rbxassetid://" .. data }
-			elseif type(data) == "table" then
-				local img = data.Image or data.Id or data.id or data[1]
-				if type(img) == "number" then img = "rbxassetid://" .. img end
-				local extra = type(data[2]) == "table" and data[2] or {}
-				result = {
-					Image = img,
-					RectSize = data.ImageRectSize or data.RectSize or extra.ImageRectSize,
-					RectOffset = data.ImageRectOffset or data.ImageRectPosition or data.RectOffset
-						or extra.ImageRectPosition or extra.ImageRectOffset,
-				}
+		local clean = (name:gsub("^lucide[-:]", ""))
+		local wind = Library.WindUI or env.WindUI or _G.WindUI
+
+		-- 1) the official WindUI function
+		if not result and type(wind) == "table" then
+			local ok, res = pcall(function()
+				return wind.Creator.Icons.Icon(clean, "lucide")
+			end)
+			if ok and res then result = parseIcon(res, nil) end
+		end
+
+		-- 2) the lucide table directly
+		if not result then
+			local set = Library.LucideIcons
+			if not set and type(wind) == "table" then
+				pcall(function() set = wind.Creator.Icons.Icons.lucide end)
 			end
+			if type(set) == "table" then
+				local icons = type(set.Icons) == "table" and set.Icons or set
+				local data = icons[name] or icons[clean] or icons[clean:lower()]
+				result = parseIcon(data, set)
+			end
+		end
+
+		if not result and (Library.LucideIcons or Library.WindUI) and not warned[name] then
+			warned[name] = true
+			warn("[SimpleUI] Lucide icon not found: " .. name)
 		end
 	end
 
@@ -183,7 +281,7 @@ local function makeDraggable(handle, target)
 		end
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
+	table.insert(State.Conns, UserInputService.InputChanged:Connect(function(input)
 		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local d = input.Position - dragStart
 			if d.Magnitude > 5 then moved = true end
@@ -194,7 +292,7 @@ local function makeDraggable(handle, target)
 				)
 			end
 		end
-	end)
+	end))
 
 	return function() return moved end
 end
@@ -284,6 +382,7 @@ function Library:Notify(opts)
 	TweenService:Create(fill, TweenInfo.new(duration, Enum.EasingStyle.Linear), { Size = UDim2.fromScale(0, 1) }):Play()
 
 	task.delay(duration, function()
+		if not slot.Parent then return end
 		tween(card, 0.25, { Position = UDim2.new(1, 320, 0, 0) }, Enum.EasingStyle.Quint)
 		task.wait(0.27)
 		slot:Destroy()
@@ -294,12 +393,21 @@ end
 -- Window
 --------------------------------------------------------------------
 function Library:CreateWindow(opts)
+	-- Only one window is ever allowed
+	if Library.Window then
+		warn("[SimpleUI] A window already exists, returning the existing one.")
+		return Library.Window
+	end
+
 	opts = opts or {}
 	local Window = { Tabs = {}, Current = nil }
+	Library.Window = Window -- set immediately (before anything can yield)
+
 	local bg = opts.Color or Theme.Background
 	local accent = opts.Accent or Theme.Accent
 	local fullSize = opts.Size or UDim2.new(0, 550, 0, 356)
 	if opts.Icons then Library:SetIcons(opts.Icons) end
+	if opts.WindUI then Library:SetWindUI(opts.WindUI) end
 
 	local main = new("Frame", {
 		Name = "Window",
@@ -495,11 +603,14 @@ function Library:CreateWindow(opts)
 	end
 
 	function Window:Destroy()
-		main:Destroy()
-		openBtn:Destroy()
+		destroyAll()
 	end
 
+	local confirmOpen = false
 	local function confirmDelete()
+		if confirmOpen then return end
+		confirmOpen = true
+
 		local overlay = new("TextButton", {
 			BackgroundColor3 = Color3.new(0, 0, 0),
 			BackgroundTransparency = 0.45,
@@ -560,9 +671,11 @@ function Library:CreateWindow(opts)
 		local cancel = dialogButton("Cancel", 16, Theme.Surface, Theme.Text)
 		local delete = dialogButton("Delete", 150, Theme.Danger, Color3.new(1, 1, 1))
 
-		cancel.Activated:Connect(function() overlay:Destroy() end)
-		delete.Activated:Connect(function()
+		cancel.Activated:Connect(function()
+			confirmOpen = false
 			overlay:Destroy()
+		end)
+		delete.Activated:Connect(function()
 			Window:Destroy()
 		end)
 	end
@@ -576,12 +689,14 @@ function Library:CreateWindow(opts)
 
 	--------------------------------------------------------------
 	-- Tabs
+	-- NOTE: internal fields are named _btn / _page on purpose.
+	-- (Tab.Button would collide with the Tab:Button() method.)
 	--------------------------------------------------------------
 	local function selectTab(tab)
 		if Window.Current == tab then return end
 		for _, t in ipairs(Window.Tabs) do
-			t.Page.Visible = (t == tab)
-			t.Button.BackgroundTransparency = (t == tab) and 0 or 1
+			t._page.Visible = (t == tab)
+			t._btn.BackgroundTransparency = (t == tab) and 0 or 1
 		end
 		Window.Current = tab
 	end
@@ -628,8 +743,8 @@ function Library:CreateWindow(opts)
 		new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, page)
 		new("UIPadding", { PaddingRight = UDim.new(0, 6) }, page)
 
-		Tab.Button = btn
-		Tab.Page = page
+		Tab._btn = btn
+		Tab._page = page
 		table.insert(Window.Tabs, Tab)
 
 		btn.Activated:Connect(function() selectTab(Tab) end)
@@ -739,7 +854,6 @@ function Library:CreateWindow(opts)
 			o = o or {}
 
 			local frame = new("Frame", {
-				BackgroundColor3 = Theme.Surface,
 				BackgroundTransparency = 1,
 				Size = UDim2.new(1, 0, 0, 0),
 				AutomaticSize = Enum.AutomaticSize.Y,
@@ -850,17 +964,20 @@ end
 --------------------------------------------------------------------
 -- Example
 --------------------------------------------------------------------
---[[
--- If you have WindUI loaded in your script:
--- local lucideIcons = WindUI.Creator.Icons.Icons.lucide
--- Library:SetIcons(lucideIcons)
-]]
+-- Lucide icons: pass your WindUI object (best) and icons resolve through
+-- WindUI.Creator.Icons.Icon(name, "lucide"), falling back to the table
+-- WindUI.Creator.Icons.Icons.lucide.
+--
+-- If WindUI is a local in your script, add this line BEFORE CreateWindow:
+--     Library:SetWindUI(WindUI)
+-- (a global WindUI / getgenv().WindUI is detected automatically)
 
 local Window = Library:CreateWindow({
 	Title = "My Hub",
 	Description = "Simple, fast and clean",
 	Icon = "home",
 	Logo = "rbxassetid://0", -- replace with your logo asset id
+	-- WindUI = WindUI,      -- or pass it here
 	-- Color = Color3.fromRGB(18, 18, 18),
 	OpenButton = {
 		Size = UDim2.fromOffset(48, 48),
@@ -915,3 +1032,4 @@ Settings:Toggle({
 })
 
 return Library
+ 
