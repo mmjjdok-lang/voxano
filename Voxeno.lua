@@ -81,6 +81,86 @@ local Theme = {
 }
 
 --------------------------------------------------------------------
+-- Color palette: pick colors by NAME (20 colors)
+-- Color  = UI background color name (e.g. Color = "Navy")
+-- Accent = highlight color name   (e.g. Accent = "Red")
+-- Names: Matte Black, Black, Charcoal, Gray, Navy, Blue, Sky, Teal, Green,
+--        Forest, Olive, Yellow, Orange, Red, Maroon, Pink, Magenta, Purple,
+--        Indigo, Brown   (not case-sensitive; Library:GetColors() lists them)
+--------------------------------------------------------------------
+local Palette = {
+	-- { name, background, accent }
+	{ "Matte Black", Color3.fromRGB(18, 18, 18), Color3.fromRGB(88, 135, 255) },
+	{ "Black",       Color3.fromRGB(8, 8, 8),    Color3.fromRGB(230, 230, 230) },
+	{ "Charcoal",    Color3.fromRGB(30, 32, 36), Color3.fromRGB(150, 160, 175) },
+	{ "Gray",        Color3.fromRGB(40, 40, 44), Color3.fromRGB(170, 170, 180) },
+	{ "Navy",        Color3.fromRGB(14, 22, 44), Color3.fromRGB(60, 110, 230) },
+	{ "Blue",        Color3.fromRGB(16, 32, 64), Color3.fromRGB(70, 130, 255) },
+	{ "Sky",         Color3.fromRGB(14, 36, 52), Color3.fromRGB(70, 190, 240) },
+	{ "Teal",        Color3.fromRGB(12, 38, 40), Color3.fromRGB(40, 200, 190) },
+	{ "Green",       Color3.fromRGB(14, 36, 22), Color3.fromRGB(60, 200, 100) },
+	{ "Forest",      Color3.fromRGB(16, 30, 20), Color3.fromRGB(90, 170, 90) },
+	{ "Olive",       Color3.fromRGB(32, 34, 16), Color3.fromRGB(170, 180, 60) },
+	{ "Yellow",      Color3.fromRGB(40, 36, 12), Color3.fromRGB(245, 200, 50) },
+	{ "Orange",      Color3.fromRGB(44, 26, 12), Color3.fromRGB(250, 140, 40) },
+	{ "Red",         Color3.fromRGB(44, 14, 14), Color3.fromRGB(235, 70, 70) },
+	{ "Maroon",      Color3.fromRGB(36, 12, 18), Color3.fromRGB(190, 50, 80) },
+	{ "Pink",        Color3.fromRGB(44, 16, 32), Color3.fromRGB(245, 110, 170) },
+	{ "Magenta",     Color3.fromRGB(40, 14, 40), Color3.fromRGB(220, 70, 220) },
+	{ "Purple",      Color3.fromRGB(30, 18, 46), Color3.fromRGB(150, 100, 240) },
+	{ "Indigo",      Color3.fromRGB(22, 20, 52), Color3.fromRGB(110, 100, 240) },
+	{ "Brown",       Color3.fromRGB(36, 24, 16), Color3.fromRGB(190, 130, 80) },
+}
+
+local function normName(s)
+	return (tostring(s):lower():gsub("[^%w]", ""))
+end
+
+local PaletteMap = {}
+Library.Colors = {}
+for _, entry in ipairs(Palette) do
+	PaletteMap[normName(entry[1])] = entry
+	table.insert(Library.Colors, entry[1])
+end
+
+function Library:GetColors()
+	return table.clone(Library.Colors)
+end
+
+-- returns background, accent for a palette name (a Color3 is passed through)
+local function lookupColor(v)
+	if typeof(v) == "Color3" then return v, nil end
+	if type(v) == "string" then
+		local entry = PaletteMap[normName(v)]
+		if entry then return entry[2], entry[3] end
+		warn("[SimpleUI] Unknown color name '" .. v .. "'. Available: " .. table.concat(Library.Colors, ", "))
+	end
+	return nil, nil
+end
+
+local function applyTheme(colorOpt, accentOpt)
+	if colorOpt ~= nil then
+		local bgColor, accentColor = lookupColor(colorOpt)
+		if bgColor then
+			local white = Color3.new(1, 1, 1)
+			Theme.Background = bgColor
+			Theme.Surface = bgColor:Lerp(white, 0.07)
+			Theme.SurfaceHover = bgColor:Lerp(white, 0.13)
+			Theme.Stroke = bgColor:Lerp(white, 0.17)
+			if accentColor then Theme.Accent = accentColor end
+		end
+	end
+	if accentOpt ~= nil then
+		if typeof(accentOpt) == "Color3" then
+			Theme.Accent = accentOpt
+		else
+			local _, accentColor = lookupColor(accentOpt)
+			if accentColor then Theme.Accent = accentColor end
+		end
+	end
+end
+
+--------------------------------------------------------------------
 -- ScreenGui
 -- Built un-parented and mounted once on the next frame, so the whole
 -- UI appears instantly in one go.
@@ -302,6 +382,7 @@ end
 --------------------------------------------------------------------
 local notifyHolder = new("Frame", {
 	Name = "Notifications",
+	ZIndex = 100,
 	BackgroundTransparency = 1,
 	AnchorPoint = Vector2.new(1, 1),
 	Position = UDim2.new(1, -16, 1, -16),
@@ -390,6 +471,249 @@ function Library:Notify(opts)
 end
 
 --------------------------------------------------------------------
+-- Key system (separate from the window)
+-- local passed = Library:KeySystem({ Title, Key, Link, Callback })
+-- Yields until the key is correct (returns true) or the window is closed
+-- (returns false). Pass Wait = false to not yield.
+--------------------------------------------------------------------
+local function copyToClipboard(text)
+	local fn = setclipboard or toclipboard or set_clipboard
+	if not fn and Clipboard and type(Clipboard.set) == "function" then
+		fn = Clipboard.set
+	end
+	if not fn then return false end
+	return (pcall(fn, text))
+end
+
+function Library:KeySystem(opts)
+	opts = opts or {}
+
+	if Library.KeyFrame and Library.KeyFrame.Parent then
+		warn("[SimpleUI] The key window is already open.")
+		return false
+	end
+
+	applyTheme(opts.Color, opts.Accent)
+	local bg, accent = Theme.Background, Theme.Accent
+
+	-- accepted keys: a string, a number, or a table of them
+	local validKeys = {}
+	if type(opts.Key) == "table" then
+		for _, v in ipairs(opts.Key) do validKeys[tostring(v)] = true end
+	elseif opts.Key ~= nil then
+		validKeys[tostring(opts.Key)] = true
+	end
+
+	local link = opts.Link and tostring(opts.Link) or ""
+	local hasLink = link ~= ""
+	local checkY = hasLink and 174 or 126
+
+	local done = Instance.new("BindableEvent")
+	local finished = false
+
+	local overlay = new("TextButton", {
+		Name = "KeySystem",
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.35,
+		Size = UDim2.fromScale(1, 1),
+		Text = "",
+		AutoButtonColor = false,
+		ZIndex = 40,
+	}, gui)
+	Library.KeyFrame = overlay
+
+	local function finish(result)
+		if finished then return end
+		finished = true
+		Library.KeyFrame = nil
+		pcall(function() overlay:Destroy() end)
+		if result then safeCall(opts.Callback) end
+		done:Fire(result)
+	end
+	overlay.Destroying:Connect(function() finish(false) end)
+
+	local box = new("Frame", {
+		BackgroundColor3 = bg,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(360, checkY + 38 + 24),
+		ClipsDescendants = true,
+	}, overlay)
+	corner(box, 12)
+	stroke(box, Theme.Stroke)
+
+	-- header: icon + key page title + close
+	local ic = createIcon(box, opts.Icon or "key", 20, Theme.Text, "🔑")
+	ic.Position = UDim2.fromOffset(14, 12)
+
+	new("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(44, 0),
+		Size = UDim2.new(1, -90, 0, 44),
+		Text = tostring(opts.Title or "Key System"),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Font = Enum.Font.GothamBold,
+		TextSize = 15,
+		TextColor3 = Theme.Text,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	}, box)
+
+	local closeKey = new("TextButton", {
+		BackgroundColor3 = Theme.Surface,
+		Position = UDim2.new(1, -38, 0, 8),
+		Size = UDim2.fromOffset(28, 28),
+		Text = "✕",
+		Font = Enum.Font.GothamBold,
+		TextSize = 12,
+		TextColor3 = Theme.SubText,
+		AutoButtonColor = false,
+	}, box)
+	corner(closeKey, 8)
+
+	new("Frame", {
+		BackgroundColor3 = Theme.Stroke,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(0, 44),
+		Size = UDim2.new(1, 0, 0, 1),
+	}, box)
+
+	new("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(16, 54),
+		Size = UDim2.new(1, -32, 0, 16),
+		Text = tostring(opts.Description or "Enter your key to continue."),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Font = Enum.Font.Gotham,
+		TextSize = 12,
+		TextColor3 = Theme.SubText,
+	}, box)
+
+	-- key input
+	local input = new("TextBox", {
+		BackgroundColor3 = Theme.Surface,
+		Position = UDim2.fromOffset(16, 78),
+		Size = UDim2.new(1, -32, 0, 38),
+		Text = "",
+		PlaceholderText = "Enter key...",
+		PlaceholderColor3 = Theme.SubText,
+		TextColor3 = Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Font = Enum.Font.Gotham,
+		TextSize = 13,
+		ClearTextOnFocus = false,
+	}, box)
+	corner(input, 8)
+	local inputStroke = stroke(input, Theme.Stroke)
+	new("UIPadding", {
+		PaddingLeft = UDim.new(0, 12),
+		PaddingRight = UDim.new(0, 12),
+	}, input)
+
+	-- key link + copy button
+	if hasLink then
+		local linkBox = new("Frame", {
+			BackgroundColor3 = Theme.Surface,
+			Position = UDim2.fromOffset(16, 126),
+			Size = UDim2.new(1, -124, 0, 34),
+		}, box)
+		corner(linkBox, 8)
+
+		new("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(10, 0),
+			Size = UDim2.new(1, -20, 1, 0),
+			Text = link,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Font = Enum.Font.Gotham,
+			TextSize = 11,
+			TextColor3 = Theme.SubText,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+		}, linkBox)
+
+		local copyBtn = new("TextButton", {
+			BackgroundColor3 = Theme.SurfaceHover,
+			Position = UDim2.new(1, -100, 0, 126),
+			Size = UDim2.fromOffset(84, 34),
+			Text = "Copy Link",
+			Font = Enum.Font.GothamMedium,
+			TextSize = 12,
+			TextColor3 = Theme.Text,
+			AutoButtonColor = false,
+		}, box)
+		corner(copyBtn, 8)
+
+		copyBtn.Activated:Connect(function()
+			local ok = copyToClipboard(link)
+			copyBtn.Text = ok and "Copied!" or "Failed"
+			Library:Notify({
+				Title = "Key Link",
+				Content = ok and "Link copied to clipboard." or ("Clipboard not supported. Link: " .. link),
+				Duration = 3,
+			})
+			task.delay(1.5, function()
+				if copyBtn.Parent then copyBtn.Text = "Copy Link" end
+			end)
+		end)
+	end
+
+	-- check button
+	local checkBtn = new("TextButton", {
+		BackgroundColor3 = accent,
+		Position = UDim2.fromOffset(16, checkY),
+		Size = UDim2.new(1, -32, 0, 38),
+		Text = "Check Key",
+		Font = Enum.Font.GothamBold,
+		TextSize = 13,
+		TextColor3 = Color3.new(1, 1, 1),
+		AutoButtonColor = false,
+	}, box)
+	corner(checkBtn, 8)
+
+	local function check()
+		local entered = (input.Text:gsub("^%s+", ""))
+		entered = (entered:gsub("%s+$", ""))
+
+		local ok
+		if type(opts.Validate) == "function" then
+			local s, res = pcall(opts.Validate, entered)
+			ok = s and res == true
+		else
+			ok = validKeys[entered] == true
+		end
+
+		if ok then
+			Library:Notify({
+				Title = "Key System",
+				Content = "Key accepted. Welcome!",
+				Duration = 3,
+				Color = Color3.fromRGB(60, 200, 100),
+			})
+			finish(true)
+		else
+			Library:Notify({
+				Title = "Key System",
+				Content = entered == "" and "Please enter a key." or "Invalid key. Please try again.",
+				Duration = 3,
+				Color = Theme.Danger,
+			})
+			inputStroke.Color = Theme.Danger
+			task.delay(0.8, function()
+				if inputStroke.Parent then inputStroke.Color = Theme.Stroke end
+			end)
+		end
+	end
+
+	checkBtn.Activated:Connect(check)
+	input.FocusLost:Connect(function(enterPressed)
+		if enterPressed then check() end
+	end)
+	closeKey.Activated:Connect(function() finish(false) end)
+
+	if opts.Wait == false then return end
+	return done.Event:Wait()
+end
+
+--------------------------------------------------------------------
 -- Window
 --------------------------------------------------------------------
 function Library:CreateWindow(opts)
@@ -403,8 +727,9 @@ function Library:CreateWindow(opts)
 	local Window = { Tabs = {}, Current = nil }
 	Library.Window = Window -- set immediately (before anything can yield)
 
-	local bg = opts.Color or Theme.Background
-	local accent = opts.Accent or Theme.Accent
+	applyTheme(opts.Color, opts.Accent) -- color names, e.g. Color = "Navy"
+	local bg = Theme.Background
+	local accent = Theme.Accent
 	local fullSize = opts.Size or UDim2.new(0, 550, 0, 356)
 	if opts.Icons then Library:SetIcons(opts.Icons) end
 	if opts.WindUI then Library:SetWindUI(opts.WindUI) end
@@ -547,7 +872,7 @@ function Library:CreateWindow(opts)
 	local ob = opts.OpenButton or {}
 	local openBtn = new("ImageButton", {
 		Name = "OpenButton",
-		BackgroundColor3 = ob.Color or Theme.Background,
+		BackgroundColor3 = (ob.Color and (lookupColor(ob.Color))) or Theme.Background,
 		Position = ob.Position or UDim2.new(0, 20, 0.5, -24),
 		Size = ob.Size or UDim2.fromOffset(48, 48),
 		Image = ob.Image or "",
