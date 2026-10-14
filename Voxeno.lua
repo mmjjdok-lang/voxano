@@ -123,6 +123,8 @@ for _, entry in ipairs(Palette) do
 	table.insert(Library.Colors, entry[1])
 end
 
+PaletteMap["dark"] = PaletteMap["mattblack"] or PaletteMap["matteblack"] -- alias: Color = "Dark"
+
 function Library:GetColors()
 	return table.clone(Library.Colors)
 end
@@ -263,6 +265,67 @@ end
 local iconCache = {}
 local warned = {}
 
+-- Lucide icons taken from a folder in the game (ImageLabels / Decals named after the icon)
+local folderIcons = {}
+
+local function iconKey(name)
+	return (normName(name):gsub("^lucide", ""))
+end
+
+local function getAllLucideIcons(folder)
+	local result = {}
+	for _, child in ipairs(folder:GetDescendants()) do
+		if child:IsA("ImageLabel") or child:IsA("ImageButton") then
+			table.insert(result, { name = child.Name, image = child.Image, instance = child })
+		elseif child:IsA("Decal") or child:IsA("Texture") then
+			table.insert(result, { name = child.Name, image = child.Texture, instance = child })
+		end
+	end
+	return result
+end
+Library.getAllLucideIcons = getAllLucideIcons
+
+local genericNames = {
+	icon = true, image = true, imagelabel = true, imagebutton = true, decal = true, texture = true,
+}
+
+-- Library:LoadIcons(folder) -> number of icons loaded
+-- After this, Icon = "home" (or "Home", "lucide-home") works for tabs and everything else.
+function Library:LoadIcons(folder)
+	if typeof(folder) ~= "Instance" then
+		warn("[SimpleUI] LoadIcons expects a Folder instance.")
+		return 0
+	end
+
+	local count = 0
+	for _, item in ipairs(getAllLucideIcons(folder)) do
+		local inst = item.instance
+		local name = item.name
+		-- if the image is inside a container (e.g. Frame "home" > ImageLabel "Icon"), use the container name
+		if genericNames[name:lower()] and inst.Parent and inst.Parent ~= folder then
+			name = inst.Parent.Name
+		end
+
+		local key = iconKey(name)
+		local img = item.image
+		if key ~= "" and type(img) == "string" and img ~= "" and not folderIcons[key] then
+			local data = { Image = img }
+			if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
+				if inst.ImageRectSize ~= Vector2.zero then
+					data.RectSize = inst.ImageRectSize
+					data.RectOffset = inst.ImageRectOffset
+				end
+			end
+			folderIcons[key] = data
+			count += 1
+		end
+	end
+
+	iconCache = {}
+	warned = {}
+	return count
+end
+
 local function resolveIcon(name)
 	if type(name) ~= "string" or name == "" then return nil end
 	if iconCache[name] ~= nil then return iconCache[name] or nil end
@@ -276,6 +339,11 @@ local function resolveIcon(name)
 		if Library.IconResolver then
 			local ok, res = pcall(Library.IconResolver, name)
 			if ok and res then result = res end
+		end
+
+		-- icons loaded from the folder (Library:LoadIcons)
+		if not result and next(folderIcons) ~= nil then
+			result = folderIcons[iconKey(name)]
 		end
 
 		local clean = (name:gsub("^lucide[-:]", ""))
@@ -345,11 +413,12 @@ end
 --------------------------------------------------------------------
 -- Dragging (returns a function telling whether a real drag happened)
 --------------------------------------------------------------------
-local function makeDraggable(handle, target)
+local function makeDraggable(handle, target, isEnabled)
 	local dragging, dragStart, startPos = false, nil, nil
 	local moved = false
 
 	handle.InputBegan:Connect(function(input)
+		if isEnabled and not isEnabled() then return end
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
 			moved = false
@@ -727,23 +796,35 @@ function Library:CreateWindow(opts)
 	local Window = { Tabs = {}, Current = nil }
 	Library.Window = Window -- set immediately (before anything can yield)
 
-	applyTheme(opts.Color, opts.Accent) -- color names, e.g. Color = "Navy"
+	-- Only 4 options: Title, Description, Color (by name), Size
+	applyTheme(opts.Color) -- e.g. Color = "Red" / "Dark" / "Blue" / "Purple" / "Green"
 	local bg = Theme.Background
 	local accent = Theme.Accent
-	local fullSize = opts.Size or UDim2.new(0, 550, 0, 356)
-	if opts.Icons then Library:SetIcons(opts.Icons) end
-	if opts.WindUI then Library:SetWindUI(opts.WindUI) end
 
-	local main = new("Frame", {
+	local fullSize = opts.Size or UDim2.new(0, 550, 0, 356)
+	pcall(function()
+		-- keep the window inside small screens
+		local vp = workspace.CurrentCamera.ViewportSize
+		if fullSize.X.Scale == 0 and fullSize.Y.Scale == 0 then
+			fullSize = UDim2.fromOffset(
+				math.min(fullSize.X.Offset, vp.X - 24),
+				math.min(fullSize.Y.Offset, vp.Y - 24)
+			)
+		end
+	end)
+
+	-- CanvasGroup so the whole window can fade (GroupTransparency) and scale (UIScale)
+	local main = new("CanvasGroup", {
 		Name = "Window",
 		BackgroundColor3 = bg,
+		GroupTransparency = 0,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 		Size = fullSize,
-		ClipsDescendants = true,
 	}, gui)
 	corner(main, 12)
 	stroke(main, Theme.Stroke)
+	local mainScale = new("UIScale", { Scale = 1 }, main)
 
 	-- Topbar
 	local top = new("Frame", {
@@ -751,37 +832,53 @@ function Library:CreateWindow(opts)
 		Size = UDim2.new(1, 0, 0, 48),
 	}, main)
 
-	local titleX = 14
-	if opts.Icon then
-		local ic = createIcon(top, opts.Icon, 22, Theme.Text)
-		ic.Position = UDim2.fromOffset(14, 13)
-		titleX = 44
-	end
+	local hasDesc = opts.Description ~= nil and opts.Description ~= ""
 
-	new("TextLabel", {
+	-- script name (big title)
+	local titleLabel = new("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(titleX, opts.Description and 7 or 14),
-		Size = UDim2.new(1, -(titleX + 120), 0, 18),
-		Text = tostring(opts.Title or "Window"),
+		Position = UDim2.fromOffset(14, hasDesc and 6 or 13),
+		Size = UDim2.new(1, -134, 0, 20),
+		Text = tostring(opts.Title or "Script Name"),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Font = Enum.Font.GothamBold,
-		TextSize = 15,
+		TextSize = 17,
 		TextColor3 = Theme.Text,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 	}, top)
 
-	if opts.Description then
-		new("TextLabel", {
+	-- description directly under the title
+	local descLabel
+	if hasDesc then
+		descLabel = new("TextLabel", {
 			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(titleX, 26),
-			Size = UDim2.new(1, -(titleX + 120), 0, 14),
+			Position = UDim2.fromOffset(14, 27),
+			Size = UDim2.new(1, -134, 0, 14),
 			Text = tostring(opts.Description),
 			TextXAlignment = Enum.TextXAlignment.Left,
-			Font = Enum.Font.Gotham,
+			Font = Enum.Font.GothamMedium,
 			TextSize = 11,
 			TextColor3 = Theme.SubText,
 			TextTruncate = Enum.TextTruncate.AtEnd,
 		}, top)
+	end
+
+	-- optional: icon at the left of the title -> Window:SetIcon("home")
+	local iconObj
+	function Window:SetIcon(icon)
+		if iconObj then iconObj:Destroy(); iconObj = nil end
+		local x = 14
+		if icon then
+			iconObj = createIcon(top, icon, 22, Theme.Text)
+			iconObj.Position = UDim2.fromOffset(14, 13)
+			x = 44
+		end
+		titleLabel.Position = UDim2.fromOffset(x, hasDesc and 6 or 13)
+		titleLabel.Size = UDim2.new(1, -(x + 120), 0, 20)
+		if descLabel then
+			descLabel.Position = UDim2.fromOffset(x, 27)
+			descLabel.Size = UDim2.new(1, -(x + 120), 0, 14)
+		end
 	end
 
 	-- Title bar buttons: [Hide] [Minimize] [Close]
@@ -835,22 +932,28 @@ function Library:CreateWindow(opts)
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Position = UDim2.fromOffset(8, 8),
-		Size = UDim2.new(1, -16, 1, opts.Logo and -52 or -16),
+		Size = UDim2.new(1, -16, 1, -16),
 		ScrollBarThickness = 0,
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		CanvasSize = UDim2.new(),
 	}, sidebar)
 	new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, tabList)
 
-	if opts.Logo then
-		local logo = new("ImageLabel", {
-			BackgroundTransparency = 1,
-			AnchorPoint = Vector2.new(0, 1),
-			Position = UDim2.new(0, 14, 1, -10),
-			Size = UDim2.fromOffset(28, 28),
-			Image = opts.Logo,
-		}, sidebar)
-		corner(logo, 6)
+	-- optional: logo at the bottom of the sidebar -> Window:SetLogo("rbxassetid://123")
+	local logoObj
+	function Window:SetLogo(image)
+		if logoObj then logoObj:Destroy(); logoObj = nil end
+		if image then
+			logoObj = new("ImageLabel", {
+				BackgroundTransparency = 1,
+				AnchorPoint = Vector2.new(0, 1),
+				Position = UDim2.new(0, 14, 1, -10),
+				Size = UDim2.fromOffset(28, 28),
+				Image = image,
+			}, sidebar)
+			corner(logoObj, 6)
+		end
+		tabList.Size = UDim2.new(1, -16, 1, image and -52 or -16)
 	end
 
 	new("Frame", {
@@ -869,32 +972,44 @@ function Library:CreateWindow(opts)
 	--------------------------------------------------------------
 	-- Open Button
 	--------------------------------------------------------------
-	local ob = opts.OpenButton or {}
 	local openBtn = new("ImageButton", {
 		Name = "OpenButton",
-		BackgroundColor3 = (ob.Color and (lookupColor(ob.Color))) or Theme.Background,
-		Position = ob.Position or UDim2.new(0, 20, 0.5, -24),
-		Size = ob.Size or UDim2.fromOffset(48, 48),
-		Image = ob.Image or "",
+		BackgroundColor3 = Theme.Background,
+		Position = UDim2.new(0, 20, 0.5, -24),
+		Size = UDim2.fromOffset(48, 48),
+		Image = "",
 		AutoButtonColor = false,
 		ScaleType = Enum.ScaleType.Fit,
 	}, gui)
 	corner(openBtn, 12)
 	stroke(openBtn, Theme.Stroke)
-	if not ob.Image then
-		new("TextLabel", {
-			BackgroundTransparency = 1,
-			Size = UDim2.fromScale(1, 1),
-			Text = "☰",
-			Font = Enum.Font.GothamBold,
-			TextSize = 20,
-			TextColor3 = Theme.Text,
-		}, openBtn)
-	end
 
-	local wasDragged = function() return false end
-	if ob.Draggable ~= false then
-		wasDragged = makeDraggable(openBtn, openBtn)
+	local openGlyph = new("TextLabel", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Text = "☰",
+		Font = Enum.Font.GothamBold,
+		TextSize = 20,
+		TextColor3 = Theme.Text,
+	}, openBtn)
+
+	local openDraggable = true
+	local wasDragged = makeDraggable(openBtn, openBtn, function() return openDraggable end)
+
+	-- optional: Window:OpenButton({ Size, Image, Color (name), Position, Draggable })
+	function Window:OpenButton(cfg)
+		cfg = cfg or {}
+		if cfg.Size then openBtn.Size = cfg.Size end
+		if cfg.Position then openBtn.Position = cfg.Position end
+		if cfg.Color then
+			local c = (lookupColor(cfg.Color))
+			if c then openBtn.BackgroundColor3 = c end
+		end
+		if cfg.Image ~= nil then
+			openBtn.Image = cfg.Image
+			openGlyph.Visible = (cfg.Image == "")
+		end
+		if cfg.Draggable ~= nil then openDraggable = cfg.Draggable end
 	end
 
 	--------------------------------------------------------------
@@ -903,9 +1018,67 @@ function Library:CreateWindow(opts)
 	local minimized = false
 	local savedPos = main.Position
 
-	function Window:Show() main.Visible = true end
-	function Window:Hide() main.Visible = false end
-	function Window:Toggle() main.Visible = not main.Visible end
+	local visible = true
+	local animToken = 0
+
+	-- page transition: the new page slides up + fades in
+	local function showPage(tab, animate)
+		local wrap = tab._page
+		wrap.Visible = true
+		if animate then
+			wrap.GroupTransparency = 1
+			wrap.Position = UDim2.fromOffset(0, 14)
+			tween(wrap, 0.22, { GroupTransparency = 0, Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quint)
+		else
+			wrap.GroupTransparency = 0
+			wrap.Position = UDim2.fromOffset(0, 0)
+		end
+	end
+
+	-- tab buttons slide in / out of the sidebar, one after another
+	local function animateTabs(showing, token)
+		for i, t in ipairs(Window.Tabs) do
+			local b = t._btn
+			if showing then b.Position = UDim2.new(-1, 0, 0, 0) end
+			task.delay((i - 1) * 0.04, function()
+				if token ~= animToken then return end
+				tween(b, 0.22, {
+					Position = showing and UDim2.new(0, 0, 0, 0) or UDim2.new(-1, 0, 0, 0),
+				}, Enum.EasingStyle.Quint)
+			end)
+		end
+	end
+
+	function Window:Hide()
+		if not visible then return end
+		visible = false
+		animToken += 1
+		local token = animToken
+		animateTabs(false, token)
+		tween(main, 0.2, { GroupTransparency = 1 })
+		tween(mainScale, 0.2, { Scale = 0.9 })
+		task.delay(0.22, function()
+			if token == animToken and not visible then main.Visible = false end
+		end)
+	end
+
+	function Window:Show()
+		if visible then return end
+		visible = true
+		animToken += 1
+		local token = animToken
+		main.Visible = true
+		main.GroupTransparency = 1
+		mainScale.Scale = 0.9
+		tween(main, 0.22, { GroupTransparency = 0 })
+		tween(mainScale, 0.28, { Scale = 1 }, Enum.EasingStyle.Back)
+		animateTabs(true, token)
+		if Window.Current then showPage(Window.Current, true) end
+	end
+
+	function Window:Toggle()
+		if visible then Window:Hide() else Window:Show() end
+	end
 
 	function Window:SetMinimized(v)
 		if v == minimized then return end
@@ -1017,28 +1190,82 @@ function Library:CreateWindow(opts)
 	-- NOTE: internal fields are named _btn / _page on purpose.
 	-- (Tab.Button would collide with the Tab:Button() method.)
 	--------------------------------------------------------------
-	local function selectTab(tab)
-		if Window.Current == tab then return end
-		for _, t in ipairs(Window.Tabs) do
-			t._page.Visible = (t == tab)
-			t._btn.BackgroundTransparency = (t == tab) and 0 or 1
+	local function setActive(t, active, instant)
+		local bgT = active and 0 or 1
+		local barSize = UDim2.fromOffset(3, active and 16 or 0)
+		if instant then
+			t._btn.BackgroundTransparency = bgT
+			t._bar.Size = barSize
+		else
+			tween(t._btn, 0.15, { BackgroundTransparency = bgT })
+			tween(t._bar, 0.18, { Size = barSize })
 		end
+	end
+
+	local function selectTab(tab, instant)
+		if Window.Current == tab then return end
+		local previous = Window.Current
 		Window.Current = tab
+
+		for _, t in ipairs(Window.Tabs) do
+			setActive(t, t == tab, instant)
+		end
+
+		if instant then
+			showPage(tab, false)
+			return
+		end
+
+		-- exit animation for the old page, then enter animation for the new one
+		if previous then
+			local old = previous._page
+			tween(old, 0.12, { GroupTransparency = 1, Position = UDim2.fromOffset(0, -10) })
+			task.delay(0.13, function()
+				if Window.Current ~= previous then old.Visible = false end
+			end)
+		end
+
+		local wrap = tab._page
+		wrap.Visible = true
+		wrap.GroupTransparency = 1
+		wrap.Position = UDim2.fromOffset(0, 14)
+		task.delay(previous and 0.08 or 0, function()
+			if Window.Current == tab then
+				tween(wrap, 0.22, { GroupTransparency = 0, Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quint)
+			end
+		end)
 	end
 
 	function Window:Tab(topts)
 		topts = topts or {}
 		local Tab = {}
 
+		-- slot clips the button so it can slide in from the left
+		local slot = new("Frame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, 0, 0, 34),
+			ClipsDescendants = true,
+			LayoutOrder = #Window.Tabs + 1,
+		}, tabList)
+
 		local btn = new("TextButton", {
 			BackgroundColor3 = Theme.Surface,
 			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 0, 34),
+			Size = UDim2.fromScale(1, 1),
 			Text = "",
 			AutoButtonColor = false,
-			LayoutOrder = #Window.Tabs + 1,
-		}, tabList)
+		}, slot)
 		corner(btn, 8)
+
+		-- accent bar shown on the active tab
+		local bar = new("Frame", {
+			BackgroundColor3 = accent,
+			BorderSizePixel = 0,
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 3, 0.5, 0),
+			Size = UDim2.fromOffset(3, 0),
+		}, btn)
+		corner(bar, 2)
 
 		local ic = createIcon(btn, topts.Icon, 18, Theme.Text)
 		ic.Position = UDim2.new(0, 10, 0.5, -9)
@@ -1055,6 +1282,13 @@ function Library:CreateWindow(opts)
 			TextTruncate = Enum.TextTruncate.AtEnd,
 		}, btn)
 
+		-- wrapper (CanvasGroup) is what fades/slides; `page` is the scrolling content
+		local wrap = new("CanvasGroup", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			Visible = false,
+		}, pages)
+
 		local page = new("ScrollingFrame", {
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
@@ -1063,17 +1297,17 @@ function Library:CreateWindow(opts)
 			ScrollBarImageColor3 = Theme.Stroke,
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			CanvasSize = UDim2.new(),
-			Visible = false,
-		}, pages)
+		}, wrap)
 		new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, page)
 		new("UIPadding", { PaddingRight = UDim.new(0, 6) }, page)
 
 		Tab._btn = btn
-		Tab._page = page
+		Tab._bar = bar
+		Tab._page = wrap
 		table.insert(Window.Tabs, Tab)
 
 		btn.Activated:Connect(function() selectTab(Tab) end)
-		if #Window.Tabs == 1 then selectTab(Tab) end
+		if #Window.Tabs == 1 then selectTab(Tab, true) end
 
 		-- Shared card for Button / Toggle
 		local function makeCard(o)
@@ -1434,5 +1668,90 @@ function Library:CreateWindow(opts)
 	return Window
 end
 
+--------------------------------------------------------------------
+-- Example
+--------------------------------------------------------------------
+-- Lucide icons: point the library at the Folder that holds your icons
+-- (ImageLabels / ImageButtons / Decals / Textures named after the icon).
+-- After that, any Icon = "home" (also "Home" or "lucide-home") just works.
+--
+--     local folder = game:GetService("ReplicatedStorage"):FindFirstChild("LucideIcons")
+--     if folder then Library:LoadIcons(folder) end
+--
+-- (WindUI is still supported as a fallback: Library:SetWindUI(WindUI))
+
+-- Key system (separate from the window). Yields until the key is correct.
+local passed = Library:KeySystem({
+	Title = "My Hub | Key System",   -- title of the key page
+	Key = "12345",                   -- a string, a number, or a table of valid keys
+	Link = "https://example.com/get-key", -- the "Copy Link" button copies this
+	-- Color = "Matte Black",        -- optional: one of the 20 color names
+})
+if not passed then
+	return Library
+end
+
+local Window = Library:CreateWindow({
+	Title = "My Hub",                  -- script name
+	Description = "Simple and clean",  -- text under the title
+	Color = "Matte Black",             -- color NAME (see Library:GetColors())
+	Size = UDim2.new(0, 550, 0, 356),  -- window size
+})
+
+local Main = Window:Tab({ Title = "Main", Icon = "home" })
+local Settings = Window:Tab({ Title = "Settings", Icon = "settings" })
+
+Main:Label("Welcome! This is a label.")
+
+Main:Note({
+	Title = "Dark note",
+	Text = "This is a dark note for general information.",
+	Style = "Dark",
+})
+
+Main:Note({
+	Title = "Blue note",
+	Text = "This is a blue note for important information.",
+	Style = "Blue",
+})
+
+Main:Button({
+	Title = "Test Button",
+	Desc = "Shows a notification when clicked",
+	Callback = function()
+		Library:Notify({
+			Title = "Success",
+			Content = "The button was clicked successfully.",
+			Duration = 4,
+		})
+	end,
+})
+
+Main:Toggle({
+	Title = "Enable Feature",
+	Desc = "Turn this feature on or off",
+	Default = false,
+	Callback = function(state)
+		print("Toggle:", state)
+	end,
+})
+
+Settings:Slider({
+	Title = "Walk Speed",
+	Desc = "Drag to change the value",
+	Min = 16,
+	Max = 100,
+	Default = 16,
+	Step = 1,
+	Suffix = "",
+	Callback = function(value)
+		print("Slider:", value)
+	end,
+})
+
+Settings:Toggle({
+	Title = "Another Option",
+	Callback = function(state) print("Option:", state) end,
+})
 
 return Library
