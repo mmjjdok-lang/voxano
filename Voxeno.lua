@@ -448,14 +448,18 @@ end
 
 --------------------------------------------------------------------
 -- Notify (bottom right)
+-- Library:Notify({ Title, Content, Duration, Type = "info"|"success"|"warning"|"error", Icon, Color })
+-- Click a notification to dismiss it early.
 --------------------------------------------------------------------
+local TextService = game:GetService("TextService")
+
 local notifyHolder = new("Frame", {
 	Name = "Notifications",
 	ZIndex = 100,
 	BackgroundTransparency = 1,
 	AnchorPoint = Vector2.new(1, 1),
 	Position = UDim2.new(1, -16, 1, -16),
-	Size = UDim2.new(0, 280, 1, -32),
+	Size = UDim2.new(0, 300, 1, -32),
 }, gui)
 
 new("UIListLayout", {
@@ -467,31 +471,71 @@ new("UIListLayout", {
 
 local notifyCount = 0
 
+local NotifyTypes = {
+	info = { color = nil, icon = "info", glyph = "i" }, -- nil = theme accent
+	success = { color = Color3.fromRGB(60, 200, 100), icon = "check", glyph = "✓" },
+	warning = { color = Color3.fromRGB(245, 180, 50), icon = "triangle-alert", glyph = "!" },
+	error = { color = Color3.fromRGB(235, 70, 70), icon = "x", glyph = "✕" },
+}
+
 function Library:Notify(opts)
 	opts = opts or {}
 	local duration = opts.Duration or 4
-	local accent = opts.Color or Theme.Accent
+	local kind = NotifyTypes[tostring(opts.Type or "info"):lower()] or NotifyTypes.info
+	local accent = opts.Color or kind.color or Theme.Accent
 	notifyCount += 1
+
+	local WIDTH = 300
+	local content = tostring(opts.Content or "")
+
+	-- measure the message so the card fits it exactly
+	local textH = 0
+	if content ~= "" then
+		local ok, size = pcall(function()
+			return TextService:GetTextSize(content, 12, Enum.Font.Gotham, Vector2.new(WIDTH - 54 - 14, 10000))
+		end)
+		textH = ok and size.Y or 16
+	end
+	local height = math.max(58, 30 + textH + 18)
 
 	local slot = new("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(280, 68),
+		Size = UDim2.fromOffset(WIDTH, height),
 		LayoutOrder = notifyCount,
 	}, notifyHolder)
 
-	local card = new("Frame", {
-		BackgroundColor3 = Theme.Background,
+	local card = new("CanvasGroup", {
+		BackgroundColor3 = Theme.Surface,
 		Size = UDim2.fromScale(1, 1),
-		Position = UDim2.new(1, 320, 0, 0),
-		ClipsDescendants = true,
+		Position = UDim2.fromOffset(70, 0),
+		GroupTransparency = 1,
 	}, slot)
 	corner(card, 10)
 	stroke(card, Theme.Stroke)
 
+	-- colored edge
+	new("Frame", {
+		BackgroundColor3 = accent,
+		BorderSizePixel = 0,
+		Size = UDim2.new(0, 3, 1, 0),
+	}, card)
+
+	-- icon badge
+	local badge = new("Frame", {
+		BackgroundColor3 = accent,
+		BackgroundTransparency = 0.82,
+		Position = UDim2.fromOffset(14, 10),
+		Size = UDim2.fromOffset(28, 28),
+	}, card)
+	corner(badge, 14)
+	local ic = createIcon(badge, opts.Icon or kind.icon, 16, accent, kind.glyph)
+	ic.AnchorPoint = Vector2.new(0.5, 0.5)
+	ic.Position = UDim2.fromScale(0.5, 0.5)
+
 	new("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(12, 7),
-		Size = UDim2.new(1, -24, 0, 16),
+		Position = UDim2.fromOffset(54, 9),
+		Size = UDim2.new(1, -68, 0, 18),
 		Text = tostring(opts.Title or "Notification"),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Font = Enum.Font.GothamBold,
@@ -500,43 +544,63 @@ function Library:Notify(opts)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 	}, card)
 
-	new("TextLabel", {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(12, 25),
-		Size = UDim2.new(1, -24, 0, 28),
-		Text = tostring(opts.Content or ""),
-		TextWrapped = true,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Top,
-		Font = Enum.Font.Gotham,
-		TextSize = 12,
-		TextColor3 = Theme.SubText,
-	}, card)
+	if content ~= "" then
+		new("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(54, 28),
+			Size = UDim2.new(1, -68, 0, textH),
+			Text = content,
+			TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			Font = Enum.Font.Gotham,
+			TextSize = 12,
+			TextColor3 = Theme.SubText,
+		}, card)
+	end
 
+	-- progress bar (shrinks until the notification disappears)
 	local track = new("Frame", {
-		BackgroundColor3 = Theme.Surface,
-		Position = UDim2.new(0, 10, 1, -9),
-		Size = UDim2.new(1, -20, 0, 3),
+		BackgroundColor3 = Theme.Stroke,
 		BorderSizePixel = 0,
+		Position = UDim2.new(0, 3, 1, -3),
+		Size = UDim2.new(1, -3, 0, 3),
 	}, card)
-	corner(track, 2)
-
 	local fill = new("Frame", {
 		BackgroundColor3 = accent,
-		Size = UDim2.fromScale(1, 1),
 		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
 	}, track)
-	corner(fill, 2)
 
-	tween(card, 0.25, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quint)
+	local click = new("TextButton", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Text = "",
+		ZIndex = 5,
+	}, card)
+
+	-- slide in + fade in
+	tween(card, 0.3, { Position = UDim2.fromOffset(0, 0), GroupTransparency = 0 }, Enum.EasingStyle.Quint)
 	TweenService:Create(fill, TweenInfo.new(duration, Enum.EasingStyle.Linear), { Size = UDim2.fromScale(0, 1) }):Play()
 
-	task.delay(duration, function()
+	local dismissed = false
+	local function dismiss()
+		if dismissed then return end
+		dismissed = true
 		if not slot.Parent then return end
-		tween(card, 0.25, { Position = UDim2.new(1, 320, 0, 0) }, Enum.EasingStyle.Quint)
-		task.wait(0.27)
+		-- slide out + fade out, then the stack collapses smoothly
+		tween(card, 0.22, { Position = UDim2.fromOffset(70, 0), GroupTransparency = 1 })
+		task.wait(0.23)
+		if not slot.Parent then return end
+		tween(slot, 0.15, { Size = UDim2.fromOffset(WIDTH, 0) })
+		task.wait(0.16)
 		slot:Destroy()
-	end)
+	end
+
+	click.Activated:Connect(function() task.spawn(dismiss) end)
+	task.delay(duration, dismiss)
+
+	return { Dismiss = function() task.spawn(dismiss) end }
 end
 
 --------------------------------------------------------------------
@@ -880,6 +944,7 @@ function Library:CreateWindow(opts)
 			descLabel.Size = UDim2.new(1, -(x + 120), 0, 14)
 		end
 	end
+	if opts.Icon then Window:SetIcon(opts.Icon) end -- icon at the left of the title
 
 	-- Title bar buttons: [Hide] [Minimize] [Close]
 	local function topButton(xOffset, iconName, glyph, hoverColor)
@@ -971,32 +1036,85 @@ function Library:CreateWindow(opts)
 
 	--------------------------------------------------------------
 	-- Open Button
+	-- Window:OpenButton({ Name, Size, Image, Color (name), Position, Draggable })
 	--------------------------------------------------------------
-	local openBtn = new("ImageButton", {
+	local openBtn = new("TextButton", {
 		Name = "OpenButton",
 		BackgroundColor3 = Theme.Background,
 		Position = UDim2.new(0, 20, 0.5, -24),
 		Size = UDim2.fromOffset(48, 48),
-		Image = "",
+		Text = "",
 		AutoButtonColor = false,
-		ScaleType = Enum.ScaleType.Fit,
 	}, gui)
 	corner(openBtn, 12)
-	stroke(openBtn, Theme.Stroke)
+	local openStroke = stroke(openBtn, Theme.Stroke)
+	local openScale = new("UIScale", { Scale = 1 }, openBtn)
 
-	local openGlyph = new("TextLabel", {
+	local openContent = new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Text = "☰",
-		Font = Enum.Font.GothamBold,
-		TextSize = 20,
-		TextColor3 = Theme.Text,
 	}, openBtn)
+	new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Vertical,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		Padding = UDim.new(0, 2),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, openContent)
+
+	local openCfg = { Image = nil, Name = nil }
+
+	local function refreshOpenButton()
+		for _, c in ipairs(openContent:GetChildren()) do
+			if not c:IsA("UIListLayout") then c:Destroy() end
+		end
+
+		local h = openBtn.Size.Y.Offset
+		if h <= 0 then h = 48 end
+		local hasImage = openCfg.Image ~= nil and openCfg.Image ~= ""
+		local hasName = openCfg.Name ~= nil and openCfg.Name ~= ""
+
+		-- image / icon (or the default menu glyph when nothing is set)
+		if hasImage or not hasName then
+			local size = math.floor(h * (hasName and 0.45 or 0.55))
+			local isAsset = type(openCfg.Image) == "string" and openCfg.Image:find("^rbxasset") ~= nil
+			local ic = createIcon(openContent, hasImage and openCfg.Image or "menu", size,
+				isAsset and Color3.new(1, 1, 1) or Theme.Text, "☰")
+			ic.LayoutOrder = 1
+		end
+
+		-- name
+		if hasName then
+			local ts = math.clamp(math.floor(h * 0.22), 9, 14)
+			new("TextLabel", {
+				BackgroundTransparency = 1,
+				Size = hasImage and UDim2.new(1, -6, 0, ts + 2) or UDim2.new(1, -8, 1, 0),
+				LayoutOrder = 2,
+				Text = tostring(openCfg.Name),
+				Font = Enum.Font.GothamBold,
+				TextSize = hasImage and ts or math.clamp(math.floor(h * 0.28), 10, 16),
+				TextColor3 = Theme.Text,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, openContent)
+		end
+	end
+	refreshOpenButton()
+
+	-- hover / press animation
+	openBtn.MouseEnter:Connect(function()
+		tween(openScale, 0.12, { Scale = 1.07 })
+		tween(openStroke, 0.12, { Color = accent })
+	end)
+	openBtn.MouseLeave:Connect(function()
+		tween(openScale, 0.12, { Scale = 1 })
+		tween(openStroke, 0.12, { Color = Theme.Stroke })
+	end)
+	openBtn.MouseButton1Down:Connect(function() tween(openScale, 0.08, { Scale = 0.92 }) end)
+	openBtn.MouseButton1Up:Connect(function() tween(openScale, 0.12, { Scale = 1 }) end)
 
 	local openDraggable = true
 	local wasDragged = makeDraggable(openBtn, openBtn, function() return openDraggable end)
 
-	-- optional: Window:OpenButton({ Size, Image, Color (name), Position, Draggable })
 	function Window:OpenButton(cfg)
 		cfg = cfg or {}
 		if cfg.Size then openBtn.Size = cfg.Size end
@@ -1005,11 +1123,10 @@ function Library:CreateWindow(opts)
 			local c = (lookupColor(cfg.Color))
 			if c then openBtn.BackgroundColor3 = c end
 		end
-		if cfg.Image ~= nil then
-			openBtn.Image = cfg.Image
-			openGlyph.Visible = (cfg.Image == "")
-		end
+		if cfg.Image ~= nil then openCfg.Image = cfg.Image end
+		if cfg.Name ~= nil then openCfg.Name = cfg.Name end
 		if cfg.Draggable ~= nil then openDraggable = cfg.Draggable end
+		refreshOpenButton()
 	end
 
 	--------------------------------------------------------------
@@ -1347,8 +1464,15 @@ function Library:CreateWindow(opts)
 				}, card)
 			end
 
+			-- hover + press animation
+			local cardScale = new("UIScale", { Scale = 1 }, card)
 			card.MouseEnter:Connect(function() tween(card, 0.1, { BackgroundColor3 = Theme.SurfaceHover }) end)
-			card.MouseLeave:Connect(function() tween(card, 0.1, { BackgroundColor3 = Theme.Surface }) end)
+			card.MouseLeave:Connect(function()
+				tween(card, 0.1, { BackgroundColor3 = Theme.Surface })
+				tween(cardScale, 0.1, { Scale = 1 })
+			end)
+			card.MouseButton1Down:Connect(function() tween(cardScale, 0.08, { Scale = 0.975 }) end)
+			card.MouseButton1Up:Connect(function() tween(cardScale, 0.12, { Scale = 1 }, Enum.EasingStyle.Back) end)
 			return card
 		end
 
@@ -1406,6 +1530,345 @@ function Library:CreateWindow(opts)
 			if state then safeCall(o.Callback, true) end
 			return Toggle
 		end
+
+		-- Dropdown: Tab:Dropdown({ Title, Desc, Options, Default, Multi, Callback })
+		-- The list opens inside the window (the card expands smoothly).
+		-- Single: Callback(value)   |   Multi = true: Callback({ values })
+		function Tab:Dropdown(o)
+			o = o or {}
+			local options = o.Options or o.Values or {}
+			local multi = o.Multi == true
+			local hasDesc = o.Desc and o.Desc ~= ""
+			local headerH = hasDesc and 52 or 38
+			local ITEM_H, GAP, MAX_H = 28, 3, 140
+
+			local container = new("Frame", {
+				BackgroundColor3 = Theme.Surface,
+				Size = UDim2.new(1, 0, 0, headerH),
+				ClipsDescendants = true,
+			}, page)
+			corner(container, 8)
+			stroke(container, Theme.Stroke)
+
+			local header = new("TextButton", {
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, headerH),
+				Text = "",
+				AutoButtonColor = false,
+			}, container)
+
+			new("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(12, hasDesc and 8 or 0),
+				Size = UDim2.new(1, -150, 0, hasDesc and 18 or headerH),
+				Text = tostring(o.Title or "Dropdown"),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Font = Enum.Font.GothamMedium,
+				TextSize = 13,
+				TextColor3 = Theme.Text,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, header)
+
+			if hasDesc then
+				new("TextLabel", {
+					BackgroundTransparency = 1,
+					Position = UDim2.fromOffset(12, 27),
+					Size = UDim2.new(1, -150, 0, 16),
+					Text = tostring(o.Desc),
+					TextXAlignment = Enum.TextXAlignment.Left,
+					Font = Enum.Font.Gotham,
+					TextSize = 11,
+					TextColor3 = Theme.SubText,
+					TextTruncate = Enum.TextTruncate.AtEnd,
+				}, header)
+			end
+
+			local valueLabel = new("TextLabel", {
+				BackgroundTransparency = 1,
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -34, 0, headerH / 2),
+				Size = UDim2.fromOffset(110, 18),
+				Text = "None",
+				TextXAlignment = Enum.TextXAlignment.Right,
+				Font = Enum.Font.GothamMedium,
+				TextSize = 12,
+				TextColor3 = Theme.SubText,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, header)
+
+			local arrow = new("TextLabel", {
+				BackgroundTransparency = 1,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(1, -18, 0, headerH / 2),
+				Size = UDim2.fromOffset(16, 16),
+				Text = "▾",
+				Font = Enum.Font.GothamBold,
+				TextSize = 14,
+				TextColor3 = Theme.SubText,
+			}, header)
+
+			local panel = new("ScrollingFrame", {
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				Position = UDim2.fromOffset(6, headerH),
+				Size = UDim2.new(1, -12, 0, 0),
+				ScrollBarThickness = 2,
+				ScrollBarImageColor3 = Theme.Stroke,
+				AutomaticCanvasSize = Enum.AutomaticSize.Y,
+				CanvasSize = UDim2.new(),
+			}, container)
+			new("UIListLayout", { Padding = UDim.new(0, GAP), SortOrder = Enum.SortOrder.LayoutOrder }, panel)
+
+			-- state
+			local selected = {} -- multi: set of names
+			local single = nil  -- single: chosen name
+			if multi then
+				if type(o.Default) == "table" then
+					for _, v in ipairs(o.Default) do selected[tostring(v)] = true end
+				end
+			elseif o.Default ~= nil then
+				single = tostring(o.Default)
+			end
+
+			local buttons = {}
+			local panelH = 0
+			local open = false
+
+			local function isOn(name)
+				if multi then return selected[name] == true end
+				return single == name
+			end
+
+			local function getValue()
+				if multi then
+					local list = {}
+					for _, opt in ipairs(options) do
+						if selected[tostring(opt)] then table.insert(list, tostring(opt)) end
+					end
+					return list
+				end
+				return single
+			end
+
+			local function paint()
+				for name, b in pairs(buttons) do
+					local on = isOn(name)
+					tween(b.btn, 0.12, { BackgroundTransparency = on and 0.72 or 1 })
+					b.check.Visible = on
+				end
+				if multi then
+					local list = getValue()
+					valueLabel.Text = #list > 0 and table.concat(list, ", ") or "None"
+				else
+					valueLabel.Text = single or "None"
+				end
+			end
+
+			local function fire()
+				safeCall(o.Callback, getValue())
+			end
+
+			local function setOpen(v)
+				open = v
+				local target = headerH + (v and (panelH + 8) or 0)
+				tween(container, 0.2, { Size = UDim2.new(1, 0, 0, target) }, Enum.EasingStyle.Quint)
+				tween(arrow, 0.2, { Rotation = v and 180 or 0 })
+			end
+
+			local function choose(name)
+				if multi then
+					selected[name] = (not selected[name]) or nil
+				else
+					single = name
+				end
+				paint()
+				fire()
+				if not multi then setOpen(false) end
+			end
+
+			local function build()
+				for _, c in ipairs(panel:GetChildren()) do
+					if c:IsA("TextButton") then c:Destroy() end
+				end
+				buttons = {}
+
+				for i, opt in ipairs(options) do
+					local name = tostring(opt)
+					local b = new("TextButton", {
+						BackgroundColor3 = accent,
+						BackgroundTransparency = 1,
+						Size = UDim2.new(1, 0, 0, ITEM_H),
+						Text = "",
+						AutoButtonColor = false,
+						LayoutOrder = i,
+					}, panel)
+					corner(b, 6)
+
+					new("TextLabel", {
+						BackgroundTransparency = 1,
+						Position = UDim2.fromOffset(10, 0),
+						Size = UDim2.new(1, -36, 1, 0),
+						Text = name,
+						TextXAlignment = Enum.TextXAlignment.Left,
+						Font = Enum.Font.GothamMedium,
+						TextSize = 12,
+						TextColor3 = Theme.Text,
+						TextTruncate = Enum.TextTruncate.AtEnd,
+					}, b)
+
+					local check = new("TextLabel", {
+						BackgroundTransparency = 1,
+						AnchorPoint = Vector2.new(1, 0.5),
+						Position = UDim2.new(1, -10, 0.5, 0),
+						Size = UDim2.fromOffset(14, 14),
+						Text = "✓",
+						Font = Enum.Font.GothamBold,
+						TextSize = 12,
+						TextColor3 = Theme.Text,
+						Visible = false,
+					}, b)
+
+					b.MouseEnter:Connect(function()
+						if not isOn(name) then tween(b, 0.1, { BackgroundTransparency = 0.9 }) end
+					end)
+					b.MouseLeave:Connect(function()
+						if not isOn(name) then tween(b, 0.1, { BackgroundTransparency = 1 }) end
+					end)
+					b.Activated:Connect(function() choose(name) end)
+
+					buttons[name] = { btn = b, check = check }
+				end
+
+				panelH = math.min(#options * (ITEM_H + GAP), MAX_H)
+				panel.Size = UDim2.new(1, -12, 0, panelH)
+				paint()
+				if open then
+					container.Size = UDim2.new(1, 0, 0, headerH + panelH + 8)
+				end
+			end
+
+			header.Activated:Connect(function() setOpen(not open) end)
+			header.MouseEnter:Connect(function() tween(container, 0.1, { BackgroundColor3 = Theme.SurfaceHover }) end)
+			header.MouseLeave:Connect(function() tween(container, 0.1, { BackgroundColor3 = Theme.Surface }) end)
+
+			build()
+
+			local Dropdown = {}
+			function Dropdown:Get() return getValue() end
+			function Dropdown:Set(v, silent)
+				if multi then
+					selected = {}
+					if type(v) == "table" then
+						for _, x in ipairs(v) do selected[tostring(x)] = true end
+					end
+				else
+					single = v ~= nil and tostring(v) or nil
+				end
+				paint()
+				if not silent then fire() end
+			end
+			function Dropdown:Refresh(newOptions)
+				options = newOptions or {}
+				local valid = {}
+				for _, opt in ipairs(options) do valid[tostring(opt)] = true end
+				for name in pairs(selected) do
+					if not valid[name] then selected[name] = nil end
+				end
+				if single and not valid[single] then single = nil end
+				build()
+			end
+			function Dropdown:Open() setOpen(true) end
+			function Dropdown:Close() setOpen(false) end
+			return Dropdown
+		end
+
+		-- Input (text box): Tab:Input({ Title, Desc, Placeholder, Default, Numeric, ClearOnFocus, Callback })
+		-- Callback(text, enterPressed) fires when the box loses focus (Enter or tapping away).
+		function Tab:Input(o)
+			o = o or {}
+			local hasDesc = o.Desc and o.Desc ~= ""
+
+			local card = new("Frame", {
+				BackgroundColor3 = Theme.Surface,
+				Size = UDim2.new(1, 0, 0, hasDesc and 52 or 42),
+			}, page)
+			corner(card, 8)
+			stroke(card, Theme.Stroke)
+
+			new("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(12, hasDesc and 8 or 0),
+				Size = UDim2.new(1, -170, 0, hasDesc and 18 or 42),
+				Text = tostring(o.Title or "Input"),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Font = Enum.Font.GothamMedium,
+				TextSize = 13,
+				TextColor3 = Theme.Text,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, card)
+
+			if hasDesc then
+				new("TextLabel", {
+					BackgroundTransparency = 1,
+					Position = UDim2.fromOffset(12, 27),
+					Size = UDim2.new(1, -170, 0, 16),
+					Text = tostring(o.Desc),
+					TextXAlignment = Enum.TextXAlignment.Left,
+					Font = Enum.Font.Gotham,
+					TextSize = 11,
+					TextColor3 = Theme.SubText,
+					TextTruncate = Enum.TextTruncate.AtEnd,
+				}, card)
+			end
+
+			local boxFrame = new("Frame", {
+				BackgroundColor3 = Theme.Background,
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -10, 0.5, 0),
+				Size = UDim2.fromOffset(140, 28),
+			}, card)
+			corner(boxFrame, 6)
+			local boxStroke = stroke(boxFrame, Theme.Stroke)
+
+			local box = new("TextBox", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(8, 0),
+				Size = UDim2.new(1, -16, 1, 0),
+				Text = tostring(o.Default or ""),
+				PlaceholderText = tostring(o.Placeholder or "Type here..."),
+				PlaceholderColor3 = Theme.SubText,
+				TextColor3 = Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Font = Enum.Font.Gotham,
+				TextSize = 12,
+				ClearTextOnFocus = o.ClearOnFocus == true,
+			}, boxFrame)
+
+			-- focus animation: the box grows a little and the border lights up
+			box.Focused:Connect(function()
+				tween(boxStroke, 0.15, { Color = accent })
+				tween(boxFrame, 0.18, { Size = UDim2.fromOffset(165, 28) }, Enum.EasingStyle.Quint)
+			end)
+			box.FocusLost:Connect(function(enterPressed)
+				tween(boxStroke, 0.15, { Color = Theme.Stroke })
+				tween(boxFrame, 0.18, { Size = UDim2.fromOffset(140, 28) }, Enum.EasingStyle.Quint)
+				safeCall(o.Callback, box.Text, enterPressed)
+			end)
+
+			if o.Numeric then
+				box:GetPropertyChangedSignal("Text"):Connect(function()
+					local clean = box.Text:gsub("[^%d%.%-]", "")
+					if clean ~= box.Text then box.Text = clean end
+				end)
+			end
+
+			local Input = {}
+			function Input:Set(t) box.Text = tostring(t) end
+			function Input:Get() return box.Text end
+			return Input
+		end
+
+		function Tab:Textbox(o) return Tab:Input(o) end
 
 		-- Slider: Tab:Slider({ Title, Desc, Min, Max, Default, Step, Suffix, Callback })
 		function Tab:Slider(o)
@@ -1669,4 +2132,11 @@ function Library:CreateWindow(opts)
 end
 
 
+if not passed then
+	return Library
+end
+
+
+
 return Library
+ 
