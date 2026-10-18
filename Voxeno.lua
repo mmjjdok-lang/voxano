@@ -265,6 +265,185 @@ end
 local iconCache = {}
 local warned = {}
 
+--------------------------------------------------------------------
+-- Lucide registry (names + aliases + lookup helpers)
+-- The registry only knows icon NAMES. To actually draw an icon you need an
+-- image source, checked in this order for every icon:
+--   1) Lucide.Assets / Library:SetIconAssets({ house = "rbxassetid://123" })
+--   2) icons loaded from a folder:  Library:LoadIcons(folder)
+--   3) WindUI:                      Library:SetWindUI(WindUI)
+--------------------------------------------------------------------
+local Lucide = { Names = {}, Set = {}, Compact = {}, Aliases = {}, Assets = {} }
+Library.Lucide = Lucide
+
+local LUCIDE_NAMES = [==[
+a-arrow-down a-arrow-up a-large-small accessibility activity ad air-vent airplay alarm-clock
+alarm-clock-check alarm-clock-minus alarm-clock-off alarm-clock-plus alarm-smoke align-center-horizontal
+align-center-vertical align-end-horizontal align-end-vertical align-horizontal-distribute-center
+align-horizontal-distribute-end align-horizontal-distribute-start align-horizontal-justify-center
+align-horizontal-justify-end align-horizontal-justify-start align-horizontal-space-around
+align-horizontal-space-between align-start-horizontal align-start-vertical align-vertical-distribute-center
+align-vertical-distribute-end align-vertical-distribute-start align-vertical-justify-center
+align-vertical-justify-end align-vertical-justify-start align-vertical-space-around
+align-vertical-space-between ambulance ampersand ampersands amphora anchor angle antenna anvil aperture
+app-window app-window-mac apple archive archive-restore archive-x armchair armenian-dram arrow-big-down
+arrow-big-down-dash arrow-big-left arrow-big-left-dash arrow-big-right arrow-big-right-dash arrow-big-up
+arrow-big-up-dash arrow-down arrow-down-0-1 arrow-down-1-0 arrow-down-a-z arrow-down-from-line
+arrow-down-left arrow-down-narrow-wide arrow-down-right arrow-down-to-dot arrow-down-to-line arrow-down-up
+arrow-down-wide-narrow arrow-down-z-a arrow-left arrow-left-from-line arrow-left-right arrow-left-to-line
+arrow-right arrow-right-from-line arrow-right-left arrow-right-to-line arrow-up arrow-up-0-1 arrow-up-1-0
+arrow-up-a-z arrow-up-down arrow-up-from-dot arrow-up-from-line arrow-up-left arrow-up-narrow-wide
+arrow-up-right arrow-up-to-line arrow-up-wide-narrow arrow-up-z-a arrows-up-from-line asterisk astroid
+at-sign atom audio-lines audio-lines-off audio-lines-x audio-waveform award axe axis-3d baby backpack badge
+badge-alert badge-cent badge-check badge-dollar-sign badge-euro badge-indian-rupee badge-info
+badge-japanese-yen badge-minus badge-percent badge-plus badge-pound-sterling badge-question-mark
+badge-russian-ruble badge-swiss-franc badge-turkish-lira badge-x baggage-claim balloon ban banana bandage
+bangladeshi-taka banknote banknote-arrow-down banknote-arrow-up banknote-check banknote-x barcode barrel
+baseline bath battery battery-charging battery-full battery-low battery-medium battery-plus battery-warning
+beaker bean bean-off bed bed-double bed-single beef beef-off beer beer-off belarusian-ruble bell bell-check
+bell-dot bell-electric bell-minus bell-off bell-plus bell-ring between-horizontal-end
+between-horizontal-start between-vertical-end between-vertical-start biceps-flexed bike binary binoculars
+biohazard bird birdhouse bitcoin blend blender blinds blocks bluetooth bluetooth-connected bluetooth-off
+bluetooth-searching bold bolt bomb bone bone-fracture book book-a book-alert book-audio book-bookmark
+book-check book-copy book-dashed book-down book-headphones book-heart book-image book-key book-lock
+book-minus book-open book-open-check book-open-text book-plus book-search book-text book-type book-up
+book-up-2 book-user book-x bookmark bookmark-check bookmark-minus bookmark-off bookmark-plus bookmark-x
+boom-box bot bot-message-square bot-off bottle-wine bow-arrow box boxes braces brackets brain brain-circuit
+brain-cog brick-wall brick-wall-fire brick-wall-shield bridge briefcase briefcase-business
+briefcase-conveyor-belt briefcase-medical briefcase-plus bring-to-front broccoli broom broom-sparkles brush
+brush-cleaning bubbles bug bug-off bug-play building building-complex building-complex-plus bus bus-front
+cable cable-car cake cake-slice calculator calendar calendar-1 calendar-arrow-down calendar-arrow-up
+calendar-check calendar-check-2 calendar-chevrons-left calendar-chevrons-right calendar-clock calendar-cog
+calendar-days calendar-fold calendar-heart calendar-minus calendar-minus-2 calendar-off calendar-plus
+calendar-plus-2 calendar-range calendar-search calendar-sync calendar-x calendar-x-2 calendars camera
+camera-off can can-soda candy candy-cane candy-off cannabis cannabis-off captions captions-off car
+car-battery car-front car-taxi-front caravan card-sim carrot carton carton-off case-lower case-sensitive
+case-upper cassette-tape cast castle cat cctv cctv-off certificate chart-area chart-bar chart-bar-big
+chart-bar-decreasing chart-bar-increasing chart-bar-stacked chart-candlestick chart-column chart-column-big
+chart-column-decreasing chart-column-increasing chart-column-stacked chart-gantt chart-line chart-network
+chart-no-axes-column chart-no-axes-column-decreasing chart-no-axes-column-increasing chart-no-axes-combined
+chart-no-axes-gantt chart-pie chart-scatter chart-spline check check-check check-line chef-hat cherry
+chess-bishop chess-king chess-knight chess-pawn chess-queen chess-rook chevron-down chevron-first
+chevron-last chevron-left chevron-right chevron-up chevrons-down chevrons-down-up chevrons-left
+chevrons-left-right chevrons-left-right-ellipsis chevrons-right chevrons-right-left chevrons-up
+chevrons-up-down church cigarette cigarette-off circle circle-alert circle-arrow-down circle-arrow-left
+circle-arrow-out-down-left circle-arrow-out-down-right circle-arrow-out-up-left circle-arrow-out-up-right
+circle-arrow-right circle-arrow-up circle-check circle-check-big circle-chevron-down circle-chevron-left
+circle-chevron-right circle-chevron-up circle-dashed circle-dashed-check circle-divide circle-dollar-sign
+circle-dot circle-dot-dashed circle-ellipsis circle-equal circle-euro circle-fading-arrow-up
+circle-fading-play circle-fading-plus circle-gauge circle-minus circle-off circle-parking circle-parking-off
+circle-pause circle-percent circle-pile circle-play circle-plus circle-pound-sterling circle-power
+circle-question-mark circle-slash circle-slash-2 circle-small circle-star circle-stop circle-user
+circle-user-round circle-x circuit-board citrus clapperboard clef-alto clef-bass clef-treble clipboard
+clipboard-check clipboard-clock clipboard-copy clipboard-list clipboard-minus clipboard-paste clipboard-pen
+clipboard-pen-line clipboard-plus clipboard-type clipboard-x clock clock-1 clock-10 clock-11 clock-12 clock-2
+clock-3 clock-4 clock-5 clock-6 clock-7 clock-8 clock-9 clock-alert clock-arrow-down clock-arrow-left
+clock-arrow-right clock-arrow-up clock-check clock-fading clock-plus closed-caption cloud cloud-alert
+cloud-backup cloud-check cloud-cog cloud-download cloud-drizzle cloud-fog cloud-hail cloud-lightning
+cloud-moon cloud-moon-rain cloud-off cloud-rain cloud-rain-wind cloud-snow cloud-sun cloud-sun-rain
+cloud-sync cloud-upload cloudy clover club code code-xml coffee cog coins columns-2 columns-3 columns-3-cog
+columns-4 combine command compass component computer concierge-bell cone construction contact contact-round
+container contrast cookie cooking-pot copy copy-check copy-minus copy-plus copy-slash copy-x copyleft
+copyright corner-down-left corner-down-right corner-left-down corner-left-up corner-right-down
+corner-right-up corner-up-left corner-up-right cpu cpu-ai creative-commons credit-card credit-card-check
+credit-card-minus
+]==]
+
+for name in LUCIDE_NAMES:gmatch("%S+") do
+	table.insert(Lucide.Names, name)
+	Lucide.Set[name] = true
+	Lucide.Compact[normName(name)] = name -- "ArrowLeft" / "arrow_left" -> "arrow-left"
+end
+
+-- renamed icons: both spellings resolve to whichever one your source has
+for _, pair in ipairs({
+	{ "home", "house" },
+	{ "check-circle", "circle-check" },
+	{ "alert-circle", "circle-alert" },
+	{ "alert-triangle", "triangle-alert" },
+	{ "x-circle", "circle-x" },
+	{ "help-circle", "circle-question-mark" },
+	{ "bar-chart", "chart-bar" },
+	{ "line-chart", "chart-line" },
+	{ "pie-chart", "chart-pie" },
+	{ "edit", "square-pen" },
+	{ "unlock", "lock-open" },
+	{ "user-circle", "circle-user" },
+	{ "more-horizontal", "ellipsis" },
+	{ "more-vertical", "ellipsis-vertical" },
+	{ "loader-2", "loader-circle" },
+}) do
+	Lucide.Aliases[pair[1]] = pair[2]
+	Lucide.Aliases[pair[2]] = pair[1]
+end
+
+-- "Lucide-Arrow Left" / "arrow_left" -> "arrow-left"
+function Lucide.Normalize(name)
+	if type(name) ~= "string" then return nil end
+	local n = name:lower()
+	n = (n:gsub("^%s+", ""))
+	n = (n:gsub("^lucide[%-:_%s]+", ""))
+	n = (n:gsub("[%s_]+", "-"))
+	n = (n:gsub("^%-+", ""))
+	n = (n:gsub("%-+$", ""))
+	return n
+end
+
+function Lucide.Canonical(name)
+	local n = Lucide.Normalize(name)
+	if not n or n == "" then return nil end
+	if Lucide.Set[n] then return n end
+	return Lucide.Compact[normName(n)] or n
+end
+
+function Lucide.Has(name)
+	local c = Lucide.Canonical(name)
+	return c ~= nil and Lucide.Set[c] == true
+end
+
+function Lucide.Get(name)
+	local c = Lucide.Canonical(name)
+	return c and Lucide.Assets[c] or nil
+end
+
+function Lucide.Count()
+	return #Lucide.Names
+end
+
+function Lucide.Search(query, limit)
+	local q = Lucide.Normalize(query) or ""
+	local out = {}
+	limit = limit or 10
+	if q == "" then return out end
+	for _, n in ipairs(Lucide.Names) do
+		if n:find(q, 1, true) then
+			table.insert(out, n)
+			if #out >= limit then break end
+		end
+	end
+	return out
+end
+
+-- names to try for one requested icon: the canonical name, then its alias
+function Lucide.Candidates(name)
+	local c = Lucide.Canonical(name)
+	if not c then return {} end
+	local list = { c }
+	local alt = Lucide.Aliases[c]
+	if alt then table.insert(list, alt) end
+	return list
+end
+
+-- Library:SetIconAssets({ house = "rbxassetid://123", ["arrow-left"] = { Image = "...", RectSize = V2, RectOffset = V2 } })
+function Library:SetIconAssets(tbl)
+	for k, v in pairs(tbl or {}) do
+		local c = Lucide.Canonical(k)
+		if c then Lucide.Assets[c] = v end
+	end
+	iconCache = {}
+	warned = {}
+end
+
 -- Lucide icons taken from a folder in the game (ImageLabels / Decals named after the icon)
 local folderIcons = {}
 
@@ -290,7 +469,7 @@ local genericNames = {
 }
 
 -- Library:LoadIcons(folder) -> number of icons loaded
--- After this, Icon = "home" (or "Home", "lucide-home") works for tabs and everything else.
+-- After this, Icon = "house" (or "House", "lucide-house", or the old name "home") works for tabs and everything else.
 function Library:LoadIcons(folder)
 	if typeof(folder) ~= "Instance" then
 		warn("[SimpleUI] LoadIcons expects a Folder instance.")
@@ -326,6 +505,44 @@ function Library:LoadIcons(folder)
 	return count
 end
 
+-- WindUI as an image source (official function first, then its lucide table)
+local function windIcon(clean)
+	local wind = Library.WindUI or env.WindUI or _G.WindUI
+	local result
+
+	if type(wind) == "table" then
+		local ok, res = pcall(function()
+			return wind.Creator.Icons.Icon(clean, "lucide")
+		end)
+		if ok and res then result = parseIcon(res, nil) end
+	end
+
+	if not result then
+		local set = Library.LucideIcons
+		if not set and type(wind) == "table" then
+			pcall(function() set = wind.Creator.Icons.Icons.lucide end)
+		end
+		if type(set) == "table" then
+			local icons = type(set.Icons) == "table" and set.Icons or set
+			result = parseIcon(icons[clean], set)
+		end
+	end
+
+	return result
+end
+
+local function hasIconSource()
+	return Library.IconResolver ~= nil
+		or Library.LucideIcons ~= nil
+		or Library.WindUI ~= nil
+		or env.WindUI ~= nil
+		or _G.WindUI ~= nil
+		or next(folderIcons) ~= nil
+		or next(Lucide.Assets) ~= nil
+end
+
+local noSourceWarned = false
+
 local function resolveIcon(name)
 	if type(name) ~= "string" or name == "" then return nil end
 	if iconCache[name] ~= nil then return iconCache[name] or nil end
@@ -341,38 +558,36 @@ local function resolveIcon(name)
 			if ok and res then result = res end
 		end
 
-		-- icons loaded from the folder (Library:LoadIcons)
-		if not result and next(folderIcons) ~= nil then
-			result = folderIcons[iconKey(name)]
-		end
-
-		local clean = (name:gsub("^lucide[-:]", ""))
-		local wind = Library.WindUI or env.WindUI or _G.WindUI
-
-		-- 1) the official WindUI function
-		if not result and type(wind) == "table" then
-			local ok, res = pcall(function()
-				return wind.Creator.Icons.Icon(clean, "lucide")
-			end)
-			if ok and res then result = parseIcon(res, nil) end
-		end
-
-		-- 2) the lucide table directly
+		-- registry: canonical name + alias, each checked against every image source
 		if not result then
-			local set = Library.LucideIcons
-			if not set and type(wind) == "table" then
-				pcall(function() set = wind.Creator.Icons.Icons.lucide end)
-			end
-			if type(set) == "table" then
-				local icons = type(set.Icons) == "table" and set.Icons or set
-				local data = icons[name] or icons[clean] or icons[clean:lower()]
-				result = parseIcon(data, set)
+			for _, cand in ipairs(Lucide.Candidates(name)) do
+				local asset = Lucide.Assets[cand]
+				if asset ~= nil then result = parseIcon(asset, nil) end   -- 1) your asset ids
+				if not result then result = folderIcons[iconKey(cand)] end -- 2) folder
+				if not result then result = windIcon(cand) end            -- 3) WindUI
+				if result then break end
 			end
 		end
 
-		if not result and (Library.LucideIcons or Library.WindUI) and not warned[name] then
-			warned[name] = true
-			warn("[SimpleUI] Lucide icon not found: " .. name)
+		-- helpful one-time warnings (never for emoji / plain text glyphs)
+		if not result and name:match("^[%w%-_:%s]+$") then
+			if not hasIconSource() then
+				if not noSourceWarned then
+					noSourceWarned = true
+					warn("[SimpleUI] Icon names alone can't be drawn - no image source is loaded. "
+						.. "Use Library:LoadIcons(folder), Library:SetWindUI(WindUI) or Library:SetIconAssets({ house = 'rbxassetid://...' }).")
+				end
+			elseif not warned[name] then
+				warned[name] = true
+				local canon = Lucide.Canonical(name)
+				if canon and Lucide.Has(canon) then
+					warn("[SimpleUI] '" .. name .. "' is a valid Lucide name but none of your icon sources has an image for it.")
+				else
+					local similar = Lucide.Search(canon or name, 3)
+					warn("[SimpleUI] Icon not found: '" .. name .. "'"
+						.. (#similar > 0 and (" - did you mean: " .. table.concat(similar, ", ") .. "?") or ""))
+				end
+			end
 		end
 	end
 
@@ -408,6 +623,17 @@ local function createIcon(parent, icon, size, color, fallbackGlyph)
 		Font = Enum.Font.GothamBold,
 		TextColor3 = color or Theme.Text,
 	}, parent)
+end
+
+-- Public helpers
+-- Library:Icon(parent, "house", 18, color) -> the icon instance (ImageLabel, or a glyph if no image)
+function Library:Icon(parent, name, size, color)
+	return createIcon(parent, name, size or 18, color or Theme.Text)
+end
+
+-- Library:HasIcon("house") -> true only if an image can really be drawn for it
+function Library:HasIcon(name)
+	return resolveIcon(name) ~= nil
 end
 
 --------------------------------------------------------------------
@@ -676,8 +902,11 @@ function Library:KeySystem(opts)
 	stroke(box, Theme.Stroke)
 
 	-- header: icon + key page title + close
-	local ic = createIcon(box, opts.Icon or "key", 20, Theme.Text, "🔑")
-	ic.Position = UDim2.fromOffset(14, 12)
+	local keyIcon = opts.Icon or "rbxassetid://97389060854402" -- default key window image
+	local keyIconIsAsset = type(keyIcon) == "string" and keyIcon:find("^rbxasset") ~= nil
+	local ic = createIcon(box, keyIcon, 24, keyIconIsAsset and Color3.new(1, 1, 1) or Theme.Text, "🔑")
+	ic.Position = UDim2.fromOffset(14, 10)
+	if ic:IsA("ImageLabel") then corner(ic, 6) end
 
 	new("TextLabel", {
 		BackgroundTransparency = 1,
@@ -927,7 +1156,32 @@ function Library:CreateWindow(opts)
 		}, top)
 	end
 
-	-- optional: icon at the left of the title -> Window:SetIcon("home")
+	-- Tags: framed words next to the title (version, status, ...)  ->  Window:Tag({ Text, Color, Size, Rounded })
+	local titleX = 14
+	local tagHolder = new("Frame", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Size = UDim2.fromOffset(0, 22),
+		AutomaticSize = Enum.AutomaticSize.X,
+	}, top)
+	new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		Padding = UDim.new(0, 6),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, tagHolder)
+
+	-- keeps the tags right after the title text (also after SetIcon moves the title)
+	local function layoutTags()
+		local w = 0
+		pcall(function()
+			w = TextService:GetTextSize(titleLabel.Text, titleLabel.TextSize, titleLabel.Font, Vector2.new(1000, 24)).X
+		end)
+		tagHolder.Position = UDim2.fromOffset(titleX + w + 10, hasDesc and 16 or 23)
+	end
+	layoutTags()
+
+	-- optional: icon at the left of the title -> Window:SetIcon("house")
 	local iconObj
 	function Window:SetIcon(icon)
 		if iconObj then iconObj:Destroy(); iconObj = nil end
@@ -937,14 +1191,77 @@ function Library:CreateWindow(opts)
 			iconObj.Position = UDim2.fromOffset(14, 13)
 			x = 44
 		end
+		titleX = x
 		titleLabel.Position = UDim2.fromOffset(x, hasDesc and 6 or 13)
 		titleLabel.Size = UDim2.new(1, -(x + 120), 0, 20)
 		if descLabel then
 			descLabel.Position = UDim2.fromOffset(x, 27)
 			descLabel.Size = UDim2.new(1, -(x + 120), 0, 14)
 		end
+		layoutTags()
 	end
 	if opts.Icon then Window:SetIcon(opts.Icon) end -- icon at the left of the title
+
+	local tagCount = 0
+	function Window:Tag(topts)
+		topts = topts or {}
+		tagCount += 1
+		local Tag = {}
+		local text = tostring(topts.Text or "Tag")
+		local rounded = topts.Rounded ~= false -- soft corners by default
+
+		local function pick(c)
+			local bgColor, accentColor = lookupColor(c) -- color NAME (or Color3)
+			return accentColor or bgColor or accent
+		end
+		local color = pick(topts.Color)
+
+		local function autoSize()
+			local w = 30
+			pcall(function()
+				w = TextService:GetTextSize(text, 11, Enum.Font.GothamBold, Vector2.new(400, 20)).X
+			end)
+			return UDim2.fromOffset(w + 18, 18)
+		end
+
+		local frame = new("Frame", {
+			BackgroundColor3 = color,
+			BackgroundTransparency = 0.82,
+			Size = topts.Size or autoSize(),
+			LayoutOrder = tagCount,
+		}, tagHolder)
+		local frameCorner = new("UICorner", {
+			CornerRadius = rounded and UDim.new(0.5, 0) or UDim.new(0, 0),
+		}, frame)
+		local frameStroke = stroke(frame, color)
+		frameStroke.Transparency = 0.5
+
+		local label = new("TextLabel", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			Text = text,
+			Font = Enum.Font.GothamBold,
+			TextSize = 11,
+			TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.2),
+		}, frame)
+
+		function Tag:SetText(t)
+			text = tostring(t)
+			label.Text = text
+			if not topts.Size then frame.Size = autoSize() end
+		end
+		function Tag:SetColor(c)
+			color = pick(c)
+			frame.BackgroundColor3 = color
+			frameStroke.Color = color
+			label.TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.2)
+		end
+		function Tag:SetRounded(r)
+			frameCorner.CornerRadius = r and UDim.new(0.5, 0) or UDim.new(0, 0)
+		end
+		function Tag:Destroy() frame:Destroy() end
+		return Tag
+	end
 
 	-- Title bar buttons: [Hide] [Minimize] [Close]
 	local function topButton(xOffset, iconName, glyph, hoverColor)
@@ -1870,6 +2187,305 @@ function Library:CreateWindow(opts)
 
 		function Tab:Textbox(o) return Tab:Input(o) end
 
+		-- Section: Tab:Section("Title")  - a small heading that groups the elements below it
+		function Tab:Section(title)
+			if type(title) == "table" then title = title.Title end
+			local frame = new("Frame", {
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, 24),
+			}, page)
+			new("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(4, 4),
+				Size = UDim2.new(1, -8, 1, -4),
+				Text = string.upper(tostring(title or "")),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Center,
+				Font = Enum.Font.GothamBold,
+				TextSize = 11,
+				TextColor3 = Theme.SubText,
+			}, frame)
+			return frame
+		end
+
+		-- ColorPicker: Tab:ColorPicker({ Title, Desc, Default (Color3), Callback })
+		-- Click the card: the picker opens inside the window (saturation/value square, hue bar, hex box).
+		-- Callback(Color3) fires while you drag. Methods: :Get() :Set(color) :Open() :Close()
+		function Tab:ColorPicker(o)
+			o = o or {}
+			local hasDesc = o.Desc and o.Desc ~= ""
+			local headerH = hasDesc and 52 or 38
+			local SV_H = 110
+			local panelH = 8 + SV_H + 8 + 26 + 10
+
+			local startColor = typeof(o.Default) == "Color3" and o.Default or accent
+			local h, s, v = startColor:ToHSV()
+
+			local container = new("Frame", {
+				BackgroundColor3 = Theme.Surface,
+				Size = UDim2.new(1, 0, 0, headerH),
+				ClipsDescendants = true,
+			}, page)
+			corner(container, 8)
+			stroke(container, Theme.Stroke)
+
+			local header = new("TextButton", {
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, headerH),
+				Text = "",
+				AutoButtonColor = false,
+			}, container)
+
+			new("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(12, hasDesc and 8 or 0),
+				Size = UDim2.new(1, -110, 0, hasDesc and 18 or headerH),
+				Text = tostring(o.Title or "Color"),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Font = Enum.Font.GothamMedium,
+				TextSize = 13,
+				TextColor3 = Theme.Text,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, header)
+
+			if hasDesc then
+				new("TextLabel", {
+					BackgroundTransparency = 1,
+					Position = UDim2.fromOffset(12, 27),
+					Size = UDim2.new(1, -110, 0, 16),
+					Text = tostring(o.Desc),
+					TextXAlignment = Enum.TextXAlignment.Left,
+					Font = Enum.Font.Gotham,
+					TextSize = 11,
+					TextColor3 = Theme.SubText,
+					TextTruncate = Enum.TextTruncate.AtEnd,
+				}, header)
+			end
+
+			local swatch = new("Frame", {
+				BackgroundColor3 = startColor,
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -36, 0, headerH / 2),
+				Size = UDim2.fromOffset(36, 20),
+			}, header)
+			corner(swatch, 6)
+			stroke(swatch, Theme.Stroke)
+
+			local arrow = new("TextLabel", {
+				BackgroundTransparency = 1,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(1, -18, 0, headerH / 2),
+				Size = UDim2.fromOffset(16, 16),
+				Text = "▾",
+				Font = Enum.Font.GothamBold,
+				TextSize = 14,
+				TextColor3 = Theme.SubText,
+			}, header)
+
+			-- saturation / value square (hue color + white->clear + clear->black overlays)
+			local svFrame = new("Frame", {
+				BackgroundColor3 = Color3.fromHSV(h, 1, 1),
+				Position = UDim2.fromOffset(12, headerH + 8),
+				Size = UDim2.new(1, -52, 0, SV_H),
+				BorderSizePixel = 0,
+			}, container)
+			corner(svFrame, 6)
+
+			local whiteOverlay = new("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				Size = UDim2.fromScale(1, 1),
+				BorderSizePixel = 0,
+			}, svFrame)
+			corner(whiteOverlay, 6)
+			new("UIGradient", {
+				Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 0),
+					NumberSequenceKeypoint.new(1, 1),
+				}),
+			}, whiteOverlay)
+
+			local blackOverlay = new("Frame", {
+				BackgroundColor3 = Color3.new(0, 0, 0),
+				Size = UDim2.fromScale(1, 1),
+				BorderSizePixel = 0,
+			}, svFrame)
+			corner(blackOverlay, 6)
+			new("UIGradient", {
+				Rotation = 90,
+				Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 1),
+					NumberSequenceKeypoint.new(1, 0),
+				}),
+			}, blackOverlay)
+
+			local svKnob = new("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(s, 1 - v),
+				Size = UDim2.fromOffset(12, 12),
+			}, svFrame)
+			corner(svKnob, 6)
+			stroke(svKnob, Color3.new(0, 0, 0), 1.5)
+
+			-- hue bar
+			local hueBar = new("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				Position = UDim2.new(1, -32, 0, headerH + 8),
+				Size = UDim2.fromOffset(18, SV_H),
+				BorderSizePixel = 0,
+			}, container)
+			corner(hueBar, 6)
+			new("UIGradient", {
+				Rotation = 90,
+				Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 1, 1)),
+					ColorSequenceKeypoint.new(1 / 6, Color3.fromHSV(1 / 6, 1, 1)),
+					ColorSequenceKeypoint.new(2 / 6, Color3.fromHSV(2 / 6, 1, 1)),
+					ColorSequenceKeypoint.new(3 / 6, Color3.fromHSV(3 / 6, 1, 1)),
+					ColorSequenceKeypoint.new(4 / 6, Color3.fromHSV(4 / 6, 1, 1)),
+					ColorSequenceKeypoint.new(5 / 6, Color3.fromHSV(5 / 6, 1, 1)),
+					ColorSequenceKeypoint.new(1, Color3.fromHSV(0, 1, 1)),
+				}),
+			}, hueBar)
+
+			local hueKnob = new("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, h),
+				Size = UDim2.fromOffset(22, 8),
+			}, hueBar)
+			corner(hueKnob, 4)
+			stroke(hueKnob, Color3.new(0, 0, 0), 1.5)
+
+			-- hex box + rgb readout
+			local hexY = headerH + 8 + SV_H + 8
+			local hexBox = new("TextBox", {
+				BackgroundColor3 = Theme.Background,
+				Position = UDim2.fromOffset(12, hexY),
+				Size = UDim2.fromOffset(100, 26),
+				Text = "",
+				PlaceholderText = "#FFFFFF",
+				PlaceholderColor3 = Theme.SubText,
+				TextColor3 = Theme.Text,
+				Font = Enum.Font.Gotham,
+				TextSize = 12,
+				ClearTextOnFocus = false,
+			}, container)
+			corner(hexBox, 6)
+			local hexStroke = stroke(hexBox, Theme.Stroke)
+
+			local rgbLabel = new("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(122, hexY),
+				Size = UDim2.new(1, -134, 0, 26),
+				Text = "",
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Font = Enum.Font.GothamMedium,
+				TextSize = 12,
+				TextColor3 = Theme.SubText,
+			}, container)
+
+			local function currentColor() return Color3.fromHSV(h, s, v) end
+
+			local function render()
+				local c = currentColor()
+				local r = math.floor(c.R * 255 + 0.5)
+				local g = math.floor(c.G * 255 + 0.5)
+				local b = math.floor(c.B * 255 + 0.5)
+				svFrame.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+				svKnob.Position = UDim2.fromScale(s, 1 - v)
+				hueKnob.Position = UDim2.fromScale(0.5, h)
+				swatch.BackgroundColor3 = c
+				hexBox.Text = string.format("#%02X%02X%02X", r, g, b)
+				rgbLabel.Text = string.format("R %d   G %d   B %d", r, g, b)
+			end
+
+			local function fire() safeCall(o.Callback, currentColor()) end
+
+			local function applySV(pos)
+				local abs, size = svFrame.AbsolutePosition, svFrame.AbsoluteSize
+				if size.X <= 0 or size.Y <= 0 then return end
+				s = math.clamp((pos.X - abs.X) / size.X, 0, 1)
+				v = 1 - math.clamp((pos.Y - abs.Y) / size.Y, 0, 1)
+				render()
+				fire()
+			end
+
+			local function applyHue(pos)
+				local abs, size = hueBar.AbsolutePosition, hueBar.AbsoluteSize
+				if size.Y <= 0 then return end
+				h = math.clamp((pos.Y - abs.Y) / size.Y, 0, 1)
+				render()
+				fire()
+			end
+
+			-- dragging (page scrolling is paused while you drag)
+			local dragging = nil
+			local function bind(obj, mode, apply)
+				obj.InputBegan:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						dragging = mode
+						page.ScrollingEnabled = false
+						apply(input.Position)
+						input.Changed:Connect(function()
+							if input.UserInputState == Enum.UserInputState.End then
+								if dragging == mode then dragging = nil end
+								page.ScrollingEnabled = true
+							end
+						end)
+					end
+				end)
+			end
+			bind(svFrame, "sv", applySV)
+			bind(hueBar, "hue", applyHue)
+
+			table.insert(State.Conns, UserInputService.InputChanged:Connect(function(input)
+				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					if dragging == "sv" then applySV(input.Position) else applyHue(input.Position) end
+				end
+			end))
+
+			-- hex input
+			hexBox.Focused:Connect(function() tween(hexStroke, 0.15, { Color = accent }) end)
+			hexBox.FocusLost:Connect(function()
+				tween(hexStroke, 0.15, { Color = Theme.Stroke })
+				local txt = hexBox.Text:gsub("#", "")
+				local r, g, b = txt:match("^(%x%x)(%x%x)(%x%x)$")
+				if r then
+					h, s, v = Color3.fromRGB(tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)):ToHSV()
+					render()
+					fire()
+				else
+					render() -- invalid text: restore the real value
+				end
+			end)
+
+			-- open / close
+			local open = false
+			local function setOpen(state)
+				open = state
+				tween(container, 0.22, { Size = UDim2.new(1, 0, 0, headerH + (state and panelH or 0)) }, Enum.EasingStyle.Quint)
+				tween(arrow, 0.2, { Rotation = state and 180 or 0 })
+			end
+			header.Activated:Connect(function() setOpen(not open) end)
+			header.MouseEnter:Connect(function() tween(container, 0.1, { BackgroundColor3 = Theme.SurfaceHover }) end)
+			header.MouseLeave:Connect(function() tween(container, 0.1, { BackgroundColor3 = Theme.Surface }) end)
+
+			render()
+
+			local Picker = {}
+			function Picker:Get() return currentColor() end
+			function Picker:Set(color, silent)
+				if typeof(color) ~= "Color3" then return end
+				h, s, v = color:ToHSV()
+				render()
+				if not silent then fire() end
+			end
+			function Picker:Open() setOpen(true) end
+			function Picker:Close() setOpen(false) end
+			return Picker
+		end
+
 		-- Slider: Tab:Slider({ Title, Desc, Min, Max, Default, Step, Suffix, Callback })
 		function Tab:Slider(o)
 			o = o or {}
@@ -2130,12 +2746,6 @@ function Library:CreateWindow(opts)
 
 	return Window
 end
-
-
-if not passed then
-	return Library
-end
-
 
 
 return Library
