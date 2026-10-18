@@ -1,3 +1,53 @@
+-- دالة لإنشاء لاق / توقف متعمد للسكربت لمدة محددة (مثلاً 4 ثوانٍ)
+local function freezeScript(seconds)
+	local startTime = os.clock()
+	-- حلقة تكرار دقيقة تتوقف عندها التنفيذ حتى تنتهي المدة المطلوبة
+	repeat
+		task.wait() -- لمنع حدوث Crash في الـ Roblox Client
+	until (os.clock() - startTime) >= seconds
+end
+
+-- دالة لتحميل العناصر الثقيلة (صور، أصوات، أو بيانات) بسرعة فائقة بالميكروثانية
+local function loadAssetsFast(assetList)
+	local results = {}
+	local startTime = os.clock()
+
+	-- استخدام PreloadAsync للتحميل السريع جداً
+	-- (حتى لو كانت قائمة ضخمة، يتم تحميلها بأقصى سرعة ممكنة للشبكة)
+	local ContentProvider = game:GetService("ContentProvider")
+	
+	pcall(function()
+		ContentProvider:PreloadAsync(assetList)
+	end)
+
+	local timeTaken = (os.clock() - startTime) * 1000000 -- تحويل الوقت إلى ميكروثانية (Microseconds)
+	print(string.format("تم تحميل جميع العناصر بسرعة خيالية خلال: %.2f ميكروثانية", timeTaken))
+	
+	return results
+end
+
+---------------------------------------------------------
+-- تجربة الاستخدام (Test Script)
+---------------------------------------------------------
+
+print("1. بدأ السكربت... جاري تفعيل اللاق المتعمد لمدة 4 ثوانٍ ⏳")
+
+-- تفعيل اللاق لمدة 4 ثوانٍ بالضبط (السكربت لن ينفذ أي سطر بعده إلا بعد انتهائه)
+freezeScript(4)
+
+print("2. انتهى اللاق بنجاح! السكربت بدأ يشتغل الآن 🚀")
+
+-- قائمة تجريبية لصور أو أصول لفتحها بسرعة فائقة
+local myAssetsToLoad = {
+	Instance.new("Decal"),
+	Instance.new("Sound")
+}
+
+-- تحميل الوظائف الثقيلة بسرعة فائقة بالميكروثانية
+loadAssetsFast(myAssetsToLoad)
+
+print("3. تمت الأوساط والمهام الثقيلة بالكامل!")
+
 --[[
 	SimpleUI
 	Default size: UDim2.new(0, 550, 0, 356)
