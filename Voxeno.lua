@@ -1,53 +1,3 @@
--- دالة لإنشاء لاق / توقف متعمد للسكربت لمدة محددة (مثلاً 4 ثوانٍ)
-local function freezeScript(seconds)
-	local startTime = os.clock()
-	-- حلقة تكرار دقيقة تتوقف عندها التنفيذ حتى تنتهي المدة المطلوبة
-	repeat
-		task.wait() -- لمنع حدوث Crash في الـ Roblox Client
-	until (os.clock() - startTime) >= seconds
-end
-
--- دالة لتحميل العناصر الثقيلة (صور، أصوات، أو بيانات) بسرعة فائقة بالميكروثانية
-local function loadAssetsFast(assetList)
-	local results = {}
-	local startTime = os.clock()
-
-	-- استخدام PreloadAsync للتحميل السريع جداً
-	-- (حتى لو كانت قائمة ضخمة، يتم تحميلها بأقصى سرعة ممكنة للشبكة)
-	local ContentProvider = game:GetService("ContentProvider")
-	
-	pcall(function()
-		ContentProvider:PreloadAsync(assetList)
-	end)
-
-	local timeTaken = (os.clock() - startTime) * 1000000 -- تحويل الوقت إلى ميكروثانية (Microseconds)
-	print(string.format("تم تحميل جميع العناصر بسرعة خيالية خلال: %.2f ميكروثانية", timeTaken))
-	
-	return results
-end
-
----------------------------------------------------------
--- تجربة الاستخدام (Test Script)
----------------------------------------------------------
-
-print("1. بدأ السكربت... جاري تفعيل اللاق المتعمد لمدة 4 ثوانٍ ⏳")
-
--- تفعيل اللاق لمدة 4 ثوانٍ بالضبط (السكربت لن ينفذ أي سطر بعده إلا بعد انتهائه)
-freezeScript(4)
-
-print("2. انتهى اللاق بنجاح! السكربت بدأ يشتغل الآن 🚀")
-
--- قائمة تجريبية لصور أو أصول لفتحها بسرعة فائقة
-local myAssetsToLoad = {
-	Instance.new("Decal"),
-	Instance.new("Sound")
-}
-
--- تحميل الوظائف الثقيلة بسرعة فائقة بالميكروثانية
-loadAssetsFast(myAssetsToLoad)
-
-print("3. تمت الأوساط والمهام الثقيلة بالكامل!")
-
 --[[
 	SimpleUI
 	Default size: UDim2.new(0, 550, 0, 356)
@@ -511,6 +461,897 @@ function Library:SetIconAssets(tbl)
 	return count
 end
 
+--------------------------------------------------------------------
+-- ICONS: Tree Hub + Solar (merged)
+--------------------------------------------------------------------
+local IconIDs = {
+	["abbr-api"] = "rbxassetid://135442589868056",
+	["abbr-ml"] = "rbxassetid://137903102602332",
+	["abbr-ql"] = "rbxassetid://110049046211149",
+	["abbr-sql"] = "rbxassetid://103476362200814",
+	["abbr-zip"] = "rbxassetid://120035177960621",
+	["alarm"] = "rbxassetid://103714651740365",
+	["alarm-fill"] = "rbxassetid://134908962222196",
+	["almost-equal"] = "rbxassetid://137719956647405",
+	["antenna-signal"] = "rbxassetid://104559571857549",
+	["aperture"] = "rbxassetid://71507557113696",
+	["archive"] = "rbxassetid://138648712889342",
+	["arrow-chevron-down"] = "rbxassetid://90698670707878",
+	["arrow-chevron-left"] = "rbxassetid://97609998912425",
+	["arrow-chevron-right"] = "rbxassetid://108948582252594",
+	["arrow-chevron-up"] = "rbxassetid://115419992736798",
+	["arrow-down"] = "rbxassetid://123939608472713",
+	["arrow-down-from-line"] = "rbxassetid://99325768084725",
+	["arrow-down-left"] = "rbxassetid://121587236109837",
+	["arrow-down-right"] = "rbxassetid://115685270562753",
+	["arrow-down-to-line"] = "rbxassetid://135415490774542",
+	["arrow-down-to-square"] = "rbxassetid://120848266158193",
+	["arrow-left"] = "rbxassetid://88189557452621",
+	["arrow-left-from-line"] = "rbxassetid://116154200261474",
+	["arrow-left-to-line"] = "rbxassetid://105416504042116",
+	["arrow-right"] = "rbxassetid://95123964581528",
+	["arrow-right-arrow-left"] = "rbxassetid://95237050232611",
+	["arrow-right-from-line"] = "rbxassetid://73250388679868",
+	["arrow-right-from-square"] = "rbxassetid://138630384007334",
+	["arrow-right-to-line"] = "rbxassetid://101169643700290",
+	["arrow-right-to-square"] = "rbxassetid://84589002276353",
+	["arrow-rotate-left"] = "rbxassetid://74661102290864",
+	["arrow-rotate-left-number-5"] = "rbxassetid://128917736449941",
+	["arrow-rotate-right"] = "rbxassetid://127787397790437",
+	["arrow-rotate-right-number-5"] = "rbxassetid://86653279618055",
+	["arrow-shape-down"] = "rbxassetid://72218786566992",
+	["arrow-shape-down-from-line"] = "rbxassetid://86427289862341",
+	["arrow-shape-down-to-line"] = "rbxassetid://91327159930160",
+	["arrow-shape-left"] = "rbxassetid://89941924562574",
+	["arrow-shape-left-from-line"] = "rbxassetid://108670324374670",
+	["arrow-shape-left-to-line"] = "rbxassetid://109558157057198",
+	["arrow-shape-right"] = "rbxassetid://100458021003226",
+	["arrow-shape-right-from-line"] = "rbxassetid://84964570689486",
+	["arrow-shape-right-to-line"] = "rbxassetid://115960328054212",
+	["arrow-shape-turn-up-left"] = "rbxassetid://132996249289474",
+	["arrow-shape-turn-up-right"] = "rbxassetid://119618287119462",
+	["arrow-shape-up"] = "rbxassetid://124602193050386",
+	["arrow-shape-up-from-line"] = "rbxassetid://117424691508865",
+	["arrow-shape-up-to-line"] = "rbxassetid://96133419760114",
+	["arrow-up"] = "rbxassetid://100806733672183",
+	["arrow-up-arrow-down"] = "rbxassetid://140168473463286",
+	["arrow-up-from-line"] = "rbxassetid://95503719226933",
+	["arrow-up-from-square"] = "rbxassetid://72403202160720",
+	["arrow-up-from-square-slash"] = "rbxassetid://108335176349985",
+	["arrow-up-left"] = "rbxassetid://134676894387453",
+	["arrow-up-right"] = "rbxassetid://107224539026693",
+	["arrow-up-right-from-square"] = "rbxassetid://92937384604050",
+	["arrow-up-to-line"] = "rbxassetid://110555587066032",
+	["arrow-uturn-ccw-down"] = "rbxassetid://105699476132562",
+	["arrow-uturn-ccw-left"] = "rbxassetid://115664707371307",
+	["arrow-uturn-ccw-right"] = "rbxassetid://126380726894011",
+	["arrow-uturn-cw-down"] = "rbxassetid://134787361730075",
+	["arrow-uturn-cw-left"] = "rbxassetid://139071077829245",
+	["arrow-uturn-cw-right"] = "rbxassetid://91889095232886",
+	["arrows-3-rotate-left"] = "rbxassetid://137959578609474",
+	["arrows-3-rotate-left-letter-a"] = "rbxassetid://120991923936761",
+	["arrows-3-rotate-right"] = "rbxassetid://84915394441695",
+	["arrows-expand"] = "rbxassetid://122410949695631",
+	["arrows-expand-horizontal"] = "rbxassetid://133458600060285",
+	["arrows-expand-vertical"] = "rbxassetid://126477345242638",
+	["arrows-opposite-to-dots"] = "rbxassetid://109943465092674",
+	["arrows-rotate-left"] = "rbxassetid://119636631750077",
+	["arrows-rotate-left-slash"] = "rbxassetid://83953788137425",
+	["arrows-rotate-right"] = "rbxassetid://71163834754608",
+	["arrows-rotate-right-slash"] = "rbxassetid://71635699550719",
+	["at"] = "rbxassetid://71604977143985",
+	["backward-step"] = "rbxassetid://115416356295964",
+	["backward-step-fill"] = "rbxassetid://73165472334476",
+	["ban"] = "rbxassetid://81039427320809",
+	["bars"] = "rbxassetid://78693767420779",
+	["bars-ascending-align-center"] = "rbxassetid://84484070067864",
+	["bars-ascending-align-left"] = "rbxassetid://139158749201798",
+	["bars-ascending-align-left-arrow-down"] = "rbxassetid://128006052892634",
+	["bars-ascending-align-left-arrow-up"] = "rbxassetid://96654587441659",
+	["bars-ascending-align-right"] = "rbxassetid://123301249654664",
+	["bars-descending-align-center"] = "rbxassetid://99351433688614",
+	["bars-descending-align-left"] = "rbxassetid://118174229311920",
+	["bars-descending-align-left-arrow-down"] = "rbxassetid://104541816646102",
+	["bars-descending-align-left-arrow-up"] = "rbxassetid://115635127737647",
+	["bars-descending-align-right"] = "rbxassetid://87267446493492",
+	["bars-play"] = "rbxassetid://108518006095531",
+	["bars-unaligned"] = "rbxassetid://100960781217209",
+	["bell"] = "rbxassetid://78246583582436",
+	["bell-dot"] = "rbxassetid://136008595824222",
+	["bell-fill"] = "rbxassetid://86681986971272",
+	["bell-slash"] = "rbxassetid://117431958262965",
+	["binoculars"] = "rbxassetid://79600106885790",
+	["bold"] = "rbxassetid://72536284189901",
+	["book"] = "rbxassetid://81445376833998",
+	["book-open"] = "rbxassetid://70499214384560",
+	["bookmark"] = "rbxassetid://92062140569721",
+	["bookmark-fill"] = "rbxassetid://102864828026385",
+	["books"] = "rbxassetid://94122657588748",
+	["box"] = "rbxassetid://75012424452065",
+	["boxes-3"] = "rbxassetid://87626327475239",
+	["branches-down"] = "rbxassetid://130945471079494",
+	["branches-right"] = "rbxassetid://85923853676231",
+	["branches-right-arrow-right"] = "rbxassetid://112215804244328",
+	["briefcase"] = "rbxassetid://71551404712337",
+	["briefcase-fill"] = "rbxassetid://85257920743453",
+	["broadcast-signal"] = "rbxassetid://102816146091577",
+	["broom-motion"] = "rbxassetid://76078843644229",
+	["broom-motion-fill"] = "rbxassetid://124943679507818",
+	["brush"] = "rbxassetid://107845488140370",
+	["bucket"] = "rbxassetid://121417289879029",
+	["bucket-paint"] = "rbxassetid://99596953231201",
+	["bug"] = "rbxassetid://98670706168887",
+	["bulb"] = "rbxassetid://93108336233221",
+	["calculator"] = "rbxassetid://137475273962332",
+	["calendar"] = "rbxassetid://116377708026056",
+	["calendar-xmark"] = "rbxassetid://104770084996807",
+	["camera"] = "rbxassetid://81803093224716",
+	["car"] = "rbxassetid://120604577353177",
+	["card-club"] = "rbxassetid://127117910964137",
+	["card-diamond"] = "rbxassetid://80236056413008",
+	["card-heart"] = "rbxassetid://120906275097794",
+	["card-spade"] = "rbxassetid://115590808323293",
+	["caret-down"] = "rbxassetid://79701968834514",
+	["caret-left"] = "rbxassetid://89316921568167",
+	["caret-right"] = "rbxassetid://139321289081149",
+	["caret-up"] = "rbxassetid://83059411586095",
+	["carets-expand-vertical"] = "rbxassetid://133896897248826",
+	["chart-area-stacked"] = "rbxassetid://130180931327397",
+	["chart-area-stacked-normalized"] = "rbxassetid://103830652069922",
+	["chart-bar"] = "rbxassetid://135127077453879",
+	["chart-bar-stacked"] = "rbxassetid://122493586521135",
+	["chart-column"] = "rbxassetid://94234923490933",
+	["chart-column-stacked"] = "rbxassetid://84907763465405",
+	["chart-donut"] = "rbxassetid://70741662222470",
+	["chart-line"] = "rbxassetid://75770898321861",
+	["chart-line-arrow-up"] = "rbxassetid://128755383700684",
+	["chart-line-label"] = "rbxassetid://78343344318924",
+	["chart-line-points"] = "rbxassetid://71936816563951",
+	["chart-mixed"] = "rbxassetid://129003368317817",
+	["chart-pie"] = "rbxassetid://133652199723190",
+	["chart-treemap"] = "rbxassetid://121384142935035",
+	["check"] = "rbxassetid://103056138350584",
+	["check-double"] = "rbxassetid://88408199250132",
+	["check-shape"] = "rbxassetid://90791112302147",
+	["check-shape-fill"] = "rbxassetid://106578333608881",
+	["cherry"] = "rbxassetid://131117375627466",
+	["chevron-down"] = "rbxassetid://101196795066767",
+	["chevron-down-wide"] = "rbxassetid://98214643270970",
+	["chevron-left"] = "rbxassetid://96477998975284",
+	["chevron-right"] = "rbxassetid://133716111451411",
+	["chevron-up"] = "rbxassetid://81099149547925",
+	["chevron-up-wide"] = "rbxassetid://114214751384551",
+	["chevrons-collapse-from-lines"] = "rbxassetid://117887712595429",
+	["chevrons-collapse-horizontal"] = "rbxassetid://132606049984534",
+	["chevrons-collapse-to-line"] = "rbxassetid://139365137473627",
+	["chevrons-collapse-up-right"] = "rbxassetid://114550385026285",
+	["chevrons-collapse-vertical"] = "rbxassetid://88863993031023",
+	["chevrons-down"] = "rbxassetid://123759343294827",
+	["chevrons-down-wide"] = "rbxassetid://126852609626773",
+	["chevrons-expand-from-line"] = "rbxassetid://81584080383503",
+	["chevrons-expand-horizontal"] = "rbxassetid://100945919368709",
+	["chevrons-expand-to-lines"] = "rbxassetid://87651107148342",
+	["chevrons-expand-up-right"] = "rbxassetid://94174346416829",
+	["chevrons-expand-vertical"] = "rbxassetid://93809445072743",
+	["chevrons-left"] = "rbxassetid://102534065706809",
+	["chevrons-right"] = "rbxassetid://96202292878843",
+	["chevrons-up"] = "rbxassetid://78078270586609",
+	["chevrons-up-wide"] = "rbxassetid://131005459829839",
+	["circle"] = "rbxassetid://137383572905673",
+	["circle-arrow-down"] = "rbxassetid://120314249950202",
+	["circle-arrow-down-fill"] = "rbxassetid://91451793265769",
+	["circle-arrow-left"] = "rbxassetid://123388016121218",
+	["circle-arrow-left-fill"] = "rbxassetid://120596831742130",
+	["circle-arrow-right"] = "rbxassetid://101229493655480",
+	["circle-arrow-right-fill"] = "rbxassetid://113087947378891",
+	["circle-arrow-up"] = "rbxassetid://121237631084166",
+	["circle-arrow-up-fill"] = "rbxassetid://124180379825426",
+	["circle-check"] = "rbxassetid://84441736605020",
+	["circle-check-fill"] = "rbxassetid://136945651864502",
+	["circle-chevron-down"] = "rbxassetid://122051087562651",
+	["circle-chevron-down-fill"] = "rbxassetid://113557422611978",
+	["circle-chevron-left"] = "rbxassetid://89977279697563",
+	["circle-chevron-left-fill"] = "rbxassetid://119025519682054",
+	["circle-chevron-right"] = "rbxassetid://73607483249296",
+	["circle-chevron-right-fill"] = "rbxassetid://95916652600208",
+	["circle-chevron-up"] = "rbxassetid://97772187879743",
+	["circle-chevron-up-fill"] = "rbxassetid://120393306329974",
+	["circle-chevrons-down"] = "rbxassetid://85496131237752",
+	["circle-chevrons-left"] = "rbxassetid://98715112437146",
+	["circle-chevrons-right"] = "rbxassetid://79444813576823",
+	["circle-chevrons-up"] = "rbxassetid://101477927637665",
+	["circle-dashed"] = "rbxassetid://122858665756800",
+	["circle-dollar"] = "rbxassetid://82400975917075",
+	["circle-exclamation"] = "rbxassetid://82169163218994",
+	["circle-exclamation-fill"] = "rbxassetid://97043397618250",
+	["circle-fill"] = "rbxassetid://94990574750335",
+	["circle-info"] = "rbxassetid://94896614951723",
+	["circle-info-fill"] = "rbxassetid://104842691994208",
+	["circle-letter-a"] = "rbxassetid://110682804507256",
+	["circle-letter-b"] = "rbxassetid://131915066352114",
+	["circle-letter-c"] = "rbxassetid://120338087811400",
+	["circle-letter-d"] = "rbxassetid://130741771880107",
+	["circle-letter-e"] = "rbxassetid://138887757846336",
+	["circle-letter-f"] = "rbxassetid://100273312746183",
+	["circle-letter-g"] = "rbxassetid://138724669470541",
+	["circle-letter-h"] = "rbxassetid://108122906545875",
+	["circle-letter-i"] = "rbxassetid://115119050404830",
+	["circle-letter-j"] = "rbxassetid://114756737367727",
+	["circle-letter-k"] = "rbxassetid://76746119020732",
+	["circle-letter-l"] = "rbxassetid://121394965902583",
+	["circle-letter-m"] = "rbxassetid://94265144812900",
+	["circle-letter-n"] = "rbxassetid://78178247320190",
+	["circle-letter-o"] = "rbxassetid://132976570923110",
+	["circle-letter-p"] = "rbxassetid://108919995898285",
+	["circle-letter-q"] = "rbxassetid://108843487550689",
+	["circle-letter-r"] = "rbxassetid://98326067563194",
+	["circle-letter-s"] = "rbxassetid://103894277089244",
+	["circle-letter-t"] = "rbxassetid://131148273820031",
+	["circle-letter-u"] = "rbxassetid://127458231439418",
+	["circle-letter-v"] = "rbxassetid://101002192432518",
+	["circle-letter-w"] = "rbxassetid://77310450045931",
+	["circle-letter-x"] = "rbxassetid://135153805304501",
+	["circle-letter-y"] = "rbxassetid://128644240416254",
+	["circle-letter-z"] = "rbxassetid://77875031623708",
+	["circle-link"] = "rbxassetid://70534705255826",
+	["circle-minus"] = "rbxassetid://109230493518470",
+	["circle-minus-fill"] = "rbxassetid://82217360639927",
+	["circle-number-0"] = "rbxassetid://139948957580308",
+	["circle-number-1"] = "rbxassetid://109640039151570",
+	["circle-number-2"] = "rbxassetid://92480552098950",
+	["circle-number-3"] = "rbxassetid://103817768553696",
+	["circle-number-4"] = "rbxassetid://94141847254472",
+	["circle-number-5"] = "rbxassetid://129276854981437",
+	["circle-number-6"] = "rbxassetid://80118979117292",
+	["circle-number-7"] = "rbxassetid://135668138548066",
+	["circle-number-8"] = "rbxassetid://138966720517801",
+	["circle-number-9"] = "rbxassetid://88336496960699",
+	["circle-pause"] = "rbxassetid://125456661498548",
+	["circle-pause-fill"] = "rbxassetid://119839378934874",
+	["circle-play"] = "rbxassetid://131885354857527",
+	["circle-play-fill"] = "rbxassetid://116647054855820",
+	["circle-plus"] = "rbxassetid://129360492879939",
+	["circle-plus-fill"] = "rbxassetid://78315607252810",
+	["circle-question"] = "rbxassetid://93356247795233",
+	["circle-question-dot"] = "rbxassetid://77195781813589",
+	["circle-question-fill"] = "rbxassetid://109914335358349",
+	["circle-ruble"] = "rbxassetid://99021046363225",
+	["circle-stop"] = "rbxassetid://130063510431342",
+	["circle-stop-fill"] = "rbxassetid://100877093103614",
+	["circle-tree"] = "rbxassetid://85080090742001",
+	["circle-xmark"] = "rbxassetid://130360653653495",
+	["circle-xmark-fill"] = "rbxassetid://101136893109914",
+	["circles-3-plus"] = "rbxassetid://112285424384524",
+	["circles-4-diamond"] = "rbxassetid://124361523430952",
+	["circles-4-square"] = "rbxassetid://96622207131032",
+	["circles-5-random"] = "rbxassetid://104341448925971",
+	["circles-concentric"] = "rbxassetid://112364968682650",
+	["circles-intersection"] = "rbxassetid://73334375522049",
+	["clock"] = "rbxassetid://95091173743042",
+	["clock-arrow-rotate-left"] = "rbxassetid://127310177043478",
+	["clock-fill"] = "rbxassetid://117237925777447",
+	["cloud"] = "rbxassetid://101918816626609",
+	["cloud-arrow-up-in"] = "rbxassetid://137117278628772",
+	["cloud-check"] = "rbxassetid://103059266691426",
+	["cloud-gear"] = "rbxassetid://110509558530780",
+	["cloud-nut-hex"] = "rbxassetid://125304015018252",
+	["cloud-slash"] = "rbxassetid://88532364599721",
+	["clouds"] = "rbxassetid://79789514014401",
+	["code"] = "rbxassetid://127032800584061",
+	["code-commit"] = "rbxassetid://111643949198037",
+	["code-commit-horizontal"] = "rbxassetid://127576006316043",
+	["code-commits"] = "rbxassetid://91309338263007",
+	["code-compare"] = "rbxassetid://138656697539302",
+	["code-fork"] = "rbxassetid://104298384240721",
+	["code-merge"] = "rbxassetid://104709907415001",
+	["code-pull-request"] = "rbxassetid://108743032859939",
+	["code-pull-request-arrow-left"] = "rbxassetid://98599280503024",
+	["code-pull-request-arrow-right"] = "rbxassetid://129705050027475",
+	["code-pull-request-check"] = "rbxassetid://103378571731120",
+	["code-pull-request-xmark"] = "rbxassetid://78829301966639",
+	["code-trunk"] = "rbxassetid://103810952923597",
+	["comment"] = "rbxassetid://109466230642253",
+	["comment-dot"] = "rbxassetid://134629650483759",
+	["comment-fill"] = "rbxassetid://112831725085208",
+	["comment-plus"] = "rbxassetid://98359578614408",
+	["comment-slash"] = "rbxassetid://138995689318032",
+	["comments"] = "rbxassetid://112347681716575",
+	["compass"] = "rbxassetid://111538538589488",
+	["copy"] = "rbxassetid://122456870046625",
+	["copy-arrow-right"] = "rbxassetid://104912869060624",
+	["copy-check"] = "rbxassetid://76642966313268",
+	["copy-check-xmark"] = "rbxassetid://122253044982865",
+	["copy-chevron-right"] = "rbxassetid://114153241555814",
+	["copy-minus"] = "rbxassetid://96922644771240",
+	["copy-picture"] = "rbxassetid://72428819718946",
+	["copy-plus"] = "rbxassetid://137867936354461",
+	["copy-transparent"] = "rbxassetid://124327837016861",
+	["copy-xmark"] = "rbxassetid://127865292095709",
+	["cpu"] = "rbxassetid://85871203780132",
+	["cpus"] = "rbxassetid://70602536224036",
+	["credit-card"] = "rbxassetid://119980351960932",
+	["crop"] = "rbxassetid://92000335381082",
+	["crown-diamond"] = "rbxassetid://137870034022669",
+	["cube"] = "rbxassetid://127347610823511",
+	["cubes-3"] = "rbxassetid://78370998312932",
+	["cubes-3-overlap"] = "rbxassetid://86277627995457",
+	["cup"] = "rbxassetid://101351327561915",
+	["curly-brackets"] = "rbxassetid://109276236803255",
+	["curly-brackets-function"] = "rbxassetid://112157245376014",
+	["curly-brackets-lock"] = "rbxassetid://134432768252956",
+	["database"] = "rbxassetid://70527848574090",
+	["database-arrow-right"] = "rbxassetid://101415863987351",
+	["database-fill"] = "rbxassetid://133484249821797",
+	["database-magnifier"] = "rbxassetid://125148893054496",
+	["databases"] = "rbxassetid://90706490669456",
+	["databases-fill"] = "rbxassetid://124304495065051",
+	["delete"] = "rbxassetid://81915416250149",
+	["diamond"] = "rbxassetid://104594307062320",
+	["diamond-exclamation"] = "rbxassetid://72475760887740",
+	["diamond-exclamation-fill"] = "rbxassetid://92750439068579",
+	["diamond-fill"] = "rbxassetid://96228419948263",
+	["dice-1"] = "rbxassetid://103689239525832",
+	["dice-2"] = "rbxassetid://96389219075812",
+	["dice-3"] = "rbxassetid://70621804370506",
+	["dice-4"] = "rbxassetid://89218365690474",
+	["dice-5"] = "rbxassetid://131630624927476",
+	["dice-6"] = "rbxassetid://138833379439041",
+	["display"] = "rbxassetid://80550180662275",
+	["display-pulse"] = "rbxassetid://138647930249888",
+	["dots-9"] = "rbxassetid://122077000646371",
+	["droplet"] = "rbxassetid://85217490213932",
+	["ear"] = "rbxassetid://135065014224646",
+	["ellipsis"] = "rbxassetid://108825746682489",
+	["ellipsis-vertical"] = "rbxassetid://97426157363170",
+	["envelope"] = "rbxassetid://109118565314106",
+	["envelope-open"] = "rbxassetid://105358726132066",
+	["envelope-open-xmark"] = "rbxassetid://80866920799385",
+	["equal"] = "rbxassetid://93419050665965",
+	["eraser"] = "rbxassetid://106523014738195",
+	["exclamation-shape"] = "rbxassetid://77426370164778",
+	["exclamation-shape-fill"] = "rbxassetid://93650541968093",
+	["eye"] = "rbxassetid://120707831495409",
+	["eye-closed"] = "rbxassetid://72035002941128",
+	["eye-dashed"] = "rbxassetid://94920104462212",
+	["eye-slash"] = "rbxassetid://74632388395769",
+	["eyes-look-left"] = "rbxassetid://135888127006421",
+	["eyes-look-right"] = "rbxassetid://115523274237362",
+	["face-alien"] = "rbxassetid://122493985129489",
+	["face-angry"] = "rbxassetid://105657465280044",
+	["face-fun"] = "rbxassetid://125279182467038",
+	["face-neutral"] = "rbxassetid://71086502634377",
+	["face-neutral-dashed"] = "rbxassetid://78798054777773",
+	["face-robot"] = "rbxassetid://105302404019498",
+	["face-robot-smile"] = "rbxassetid://74419780881388",
+	["face-sad"] = "rbxassetid://119695487707918",
+	["face-smile"] = "rbxassetid://79817174074777",
+	["face-surprise"] = "rbxassetid://94214134808069",
+	["factory"] = "rbxassetid://84085474112768",
+	["file"] = "rbxassetid://107833047300916",
+	["file-arrow-down"] = "rbxassetid://110456463755544",
+	["file-arrow-left"] = "rbxassetid://91953364759480",
+	["file-arrow-right"] = "rbxassetid://75382423167566",
+	["file-arrow-right-out"] = "rbxassetid://91570928055045",
+	["file-arrow-up"] = "rbxassetid://103734210881903",
+	["file-check"] = "rbxassetid://85119975202211",
+	["file-code"] = "rbxassetid://126119599889094",
+	["file-dollar"] = "rbxassetid://88995968130496",
+	["file-exclamation"] = "rbxassetid://137422014587320",
+	["file-letter-p"] = "rbxassetid://117140793705373",
+	["file-letter-w"] = "rbxassetid://72104258718446",
+	["file-letter-x"] = "rbxassetid://73195755082293",
+	["file-magnifier"] = "rbxassetid://126110080855699",
+	["file-minus"] = "rbxassetid://95479115601838",
+	["file-plus"] = "rbxassetid://105240495106677",
+	["file-question"] = "rbxassetid://100446629151131",
+	["file-ruble"] = "rbxassetid://74637291969088",
+	["file-text"] = "rbxassetid://133376156175387",
+	["file-xmark"] = "rbxassetid://139863878410957",
+	["file-zipper"] = "rbxassetid://71253058147459",
+	["files"] = "rbxassetid://83062861217187",
+	["filmstrip"] = "rbxassetid://98311073132457",
+	["fingerprint"] = "rbxassetid://109038457478113",
+	["firewall"] = "rbxassetid://119509701461101",
+	["flag"] = "rbxassetid://123555524822059",
+	["flame"] = "rbxassetid://118156841707888",
+	["flask"] = "rbxassetid://100829678702990",
+	["floppy-disk"] = "rbxassetid://123778614731407",
+	["folder"] = "rbxassetid://121178377882882",
+	["folder-arrow-down"] = "rbxassetid://97468473569904",
+	["folder-arrow-left"] = "rbxassetid://105044315724840",
+	["folder-arrow-right"] = "rbxassetid://134579629548406",
+	["folder-arrow-up"] = "rbxassetid://107063036939545",
+	["folder-arrow-up-in"] = "rbxassetid://117563761638574",
+	["folder-check"] = "rbxassetid://104012006265308",
+	["folder-code"] = "rbxassetid://107125298152045",
+	["folder-exclamation"] = "rbxassetid://76140673562587",
+	["folder-fill"] = "rbxassetid://101900623025419",
+	["folder-flows"] = "rbxassetid://137790120021992",
+	["folder-house"] = "rbxassetid://94345069309317",
+	["folder-keyhole"] = "rbxassetid://120770116606982",
+	["folder-lock"] = "rbxassetid://105884426146404",
+	["folder-magnifier"] = "rbxassetid://122954171576076",
+	["folder-open"] = "rbxassetid://116588458323209",
+	["folder-open-fill"] = "rbxassetid://102372531181401",
+	["folder-plus"] = "rbxassetid://121839906515471",
+	["folder-tree"] = "rbxassetid://84827525485024",
+	["folders"] = "rbxassetid://78596087518530",
+	["font"] = "rbxassetid://113737577046086",
+	["font-case"] = "rbxassetid://109181669437944",
+	["font-cursor"] = "rbxassetid://79018629030822",
+	["forward-step"] = "rbxassetid://76735557633834",
+	["forward-step-fill"] = "rbxassetid://131398028156993",
+	["frame"] = "rbxassetid://121828062350954",
+	["frames"] = "rbxassetid://71233848128981",
+	["function"] = "rbxassetid://84386313846201",
+	["funnel"] = "rbxassetid://95476072665064",
+	["funnel-xmark"] = "rbxassetid://106950038809874",
+	["gear"] = "rbxassetid://130653350850377",
+	["gear-branches"] = "rbxassetid://124635609929435",
+	["gear-dot"] = "rbxassetid://94678631000745",
+	["gear-play"] = "rbxassetid://132051405025286",
+	["gem"] = "rbxassetid://123582791292356",
+	["geo"] = "rbxassetid://112530836084262",
+	["geo-dots"] = "rbxassetid://125473964555170",
+	["geo-fill"] = "rbxassetid://125270420058642",
+	["geo-pin"] = "rbxassetid://77931214242710",
+	["geo-polygons"] = "rbxassetid://86291018663554",
+	["ghost"] = "rbxassetid://106544313918701",
+	["gift"] = "rbxassetid://88942366605587",
+	["globe"] = "rbxassetid://124472253147461",
+	["gpu"] = "rbxassetid://80435443421528",
+	["graduation-cap"] = "rbxassetid://72291379767367",
+	["graph-node"] = "rbxassetid://121418203381727",
+	["grip"] = "rbxassetid://77797757994986",
+	["grip-horizontal"] = "rbxassetid://103457330094853",
+	["hammer"] = "rbxassetid://96934135124621",
+	["hand"] = "rbxassetid://88875046551218",
+	["hand-ok"] = "rbxassetid://73421195330990",
+	["hand-point-down"] = "rbxassetid://133449559362454",
+	["hand-point-left"] = "rbxassetid://75545630547214",
+	["hand-point-right"] = "rbxassetid://96326952803878",
+	["hand-point-up"] = "rbxassetid://76992889322585",
+	["hand-stop"] = "rbxassetid://95261381545988",
+	["handset"] = "rbxassetid://94749731410407",
+	["handset-arrow-in"] = "rbxassetid://127330216639355",
+	["handset-arrow-out"] = "rbxassetid://136244597857388",
+	["hard-drive"] = "rbxassetid://134209413192545",
+	["hashtag"] = "rbxassetid://104931068902382",
+	["heading"] = "rbxassetid://114958398586380",
+	["heading-1"] = "rbxassetid://83778976927134",
+	["heading-2"] = "rbxassetid://133304878410887",
+	["heading-3"] = "rbxassetid://73341928217597",
+	["heading-4"] = "rbxassetid://77755375432268",
+	["heading-5"] = "rbxassetid://78067061590164",
+	["heading-6"] = "rbxassetid://139894519888639",
+	["headphones"] = "rbxassetid://103286933144222",
+	["heart"] = "rbxassetid://113973336125121",
+	["heart-crack"] = "rbxassetid://114161017562451",
+	["heart-fill"] = "rbxassetid://113631886629502",
+	["heart-pulse"] = "rbxassetid://94559254303679",
+	["hierarchy"] = "rbxassetid://87193001404534",
+	["house"] = "rbxassetid://84017953453024",
+	["house-fill"] = "rbxassetid://71433571410756",
+	["italic"] = "rbxassetid://81115641708810",
+	["key"] = "rbxassetid://103889368375394",
+	["keyboard"] = "rbxassetid://130539369569844",
+	["layers"] = "rbxassetid://129316465231678",
+	["layers-3-diagonal"] = "rbxassetid://120377297652057",
+	["layers-vertical"] = "rbxassetid://110354922373224",
+	["layout-cells"] = "rbxassetid://98696521748547",
+	["layout-cells-large"] = "rbxassetid://100255098354000",
+	["layout-columns"] = "rbxassetid://84427832581937",
+	["layout-columns-3"] = "rbxassetid://71735447854881",
+	["layout-footer"] = "rbxassetid://113622765670575",
+	["layout-header"] = "rbxassetid://105610307834609",
+	["layout-header-cells"] = "rbxassetid://131170467534038",
+	["layout-header-cells-large"] = "rbxassetid://137791004130120",
+	["layout-header-cells-large-fill"] = "rbxassetid://70589884836899",
+	["layout-header-cells-large-letter-d"] = "rbxassetid://117150888842613",
+	["layout-header-cells-large-thunderbolt"] = "rbxassetid://70539880056080",
+	["layout-header-columns"] = "rbxassetid://127466539759012",
+	["layout-header-cursor"] = "rbxassetid://94950003069391",
+	["layout-header-side-content"] = "rbxassetid://111700822607720",
+	["layout-list"] = "rbxassetid://93047942420928",
+	["layout-rows"] = "rbxassetid://100647663038001",
+	["layout-rows-3"] = "rbxassetid://90425482127526",
+	["layout-side-content"] = "rbxassetid://112944931847823",
+	["layout-side-content-left"] = "rbxassetid://82393275916629",
+	["layout-side-content-right"] = "rbxassetid://106198598011193",
+	["layout-split-columns"] = "rbxassetid://81956652547064",
+	["layout-split-columns-3"] = "rbxassetid://135156385761292",
+	["layout-split-rows"] = "rbxassetid://120184403763480",
+	["layout-split-side-content-left"] = "rbxassetid://115583962402116",
+	["layout-split-side-content-right"] = "rbxassetid://125684182014400",
+	["layout-tabs"] = "rbxassetid://123109511030647",
+	["letter-a-underline"] = "rbxassetid://137318351668255",
+	["letter-group"] = "rbxassetid://134098861018996",
+	["letter-m"] = "rbxassetid://124776688403365",
+	["life-ring"] = "rbxassetid://124114396162528",
+	["link"] = "rbxassetid://127654461623913",
+	["link-slash"] = "rbxassetid://86714437340868",
+	["list-check"] = "rbxassetid://72975481210972",
+	["list-check-lock"] = "rbxassetid://95781063192246",
+	["list-ol"] = "rbxassetid://123831960497637",
+	["list-timeline"] = "rbxassetid://75879925920734",
+	["list-ul"] = "rbxassetid://123133222715096",
+	["location-arrow"] = "rbxassetid://71897095805613",
+	["location-arrow-fill"] = "rbxassetid://94565046462607",
+	["lock"] = "rbxassetid://132362477716273",
+	["lock-fill"] = "rbxassetid://78340628553221",
+	["lock-open"] = "rbxassetid://81326871090745",
+	["lock-open-fill"] = "rbxassetid://131243965606901",
+	["logo-acrobat"] = "rbxassetid://77758480016386",
+	["logo-android"] = "rbxassetid://85377374331361",
+	["logo-debian"] = "rbxassetid://93074623442525",
+	["logo-docker"] = "rbxassetid://112115815862225",
+	["logo-draw-io"] = "rbxassetid://96320557568840",
+	["logo-facebook"] = "rbxassetid://91676718976544",
+	["logo-figma"] = "rbxassetid://127053693352358",
+	["logo-github"] = "rbxassetid://109140464637712",
+	["logo-gitlab"] = "rbxassetid://112942421350236",
+	["logo-linkedin"] = "rbxassetid://137058953014556",
+	["logo-linux"] = "rbxassetid://112716255017277",
+	["logo-macos"] = "rbxassetid://115977192058220",
+	["logo-markdown"] = "rbxassetid://94192304735756",
+	["logo-mcp"] = "rbxassetid://99978388756048",
+	["logo-mermaid"] = "rbxassetid://113773127670999",
+	["logo-microsoft-office"] = "rbxassetid://72281287708367",
+	["logo-nodejs"] = "rbxassetid://85662644955233",
+	["logo-notion"] = "rbxassetid://112104007451593",
+	["logo-osi"] = "rbxassetid://129020182333515",
+	["logo-python"] = "rbxassetid://108546719377285",
+	["logo-slack"] = "rbxassetid://96956955585721",
+	["logo-stack-overflow"] = "rbxassetid://108294339893412",
+	["logo-telegram"] = "rbxassetid://78021764535568",
+	["logo-ubuntu"] = "rbxassetid://87355948774846",
+	["logo-windows"] = "rbxassetid://103987175937231",
+	["logo-yandex"] = "rbxassetid://85363542282523",
+	["logo-yandex-cloud"] = "rbxassetid://70811487120976",
+	["logo-yandex-messenger"] = "rbxassetid://101194358875111",
+	["logo-yandex-tracker"] = "rbxassetid://118664096172733",
+	["magic-wand"] = "rbxassetid://117815236842546",
+	["magnet"] = "rbxassetid://87480686988492",
+	["magnifier"] = "rbxassetid://122754210010897",
+	["magnifier-minus"] = "rbxassetid://84516692474671",
+	["magnifier-plus"] = "rbxassetid://94022624784789",
+	["map-pin"] = "rbxassetid://88496867972782",
+	["map-pin-minus"] = "rbxassetid://127988204475002",
+	["map-pin-plus"] = "rbxassetid://105808264416140",
+	["math-intersection-shape"] = "rbxassetid://106794166770550",
+	["math-operations"] = "rbxassetid://103226134327086",
+	["math-union-shape"] = "rbxassetid://125633228072117",
+	["medal"] = "rbxassetid://77629794806774",
+	["megaphone"] = "rbxassetid://100616565190065",
+	["microphone"] = "rbxassetid://139538522148314",
+	["microphone-slash"] = "rbxassetid://103601475520943",
+	["microscope"] = "rbxassetid://82196704162955",
+	["minus"] = "rbxassetid://108872870188126",
+	["minus-shape"] = "rbxassetid://126969485042490",
+	["minus-shape-fill"] = "rbxassetid://85672016158837",
+	["molecule"] = "rbxassetid://83213930150159",
+	["moon"] = "rbxassetid://133378404835359",
+	["mug"] = "rbxassetid://133596134867753",
+	["music-note"] = "rbxassetid://118344544185512",
+	["nodes-down"] = "rbxassetid://78959155873218",
+	["nodes-left"] = "rbxassetid://128423983338128",
+	["nodes-right"] = "rbxassetid://118544021258370",
+	["nodes-up"] = "rbxassetid://92522278145067",
+	["nut-hex"] = "rbxassetid://81847321109216",
+	["object-align-bottom"] = "rbxassetid://103798951610656",
+	["object-align-center-horizontal"] = "rbxassetid://97416331490032",
+	["object-align-center-vertical"] = "rbxassetid://120211347778371",
+	["object-align-justify-horizontal"] = "rbxassetid://79979775646576",
+	["object-align-justify-vertical"] = "rbxassetid://110854565778147",
+	["object-align-left"] = "rbxassetid://105346144625665",
+	["object-align-right"] = "rbxassetid://103097923432348",
+	["object-align-top"] = "rbxassetid://98079578772618",
+	["objects-align-bottom"] = "rbxassetid://95388778271651",
+	["objects-align-center-horizontal"] = "rbxassetid://110438134614711",
+	["objects-align-center-vertical"] = "rbxassetid://79198463408501",
+	["objects-align-justify-horizontal"] = "rbxassetid://122875167898478",
+	["objects-align-justify-vertical"] = "rbxassetid://78441673968689",
+	["objects-align-left"] = "rbxassetid://120648874528302",
+	["objects-align-right"] = "rbxassetid://83569867209815",
+	["objects-align-top"] = "rbxassetid://138094321995396",
+	["octagon-xmark"] = "rbxassetid://139784898655656",
+	["office-badge"] = "rbxassetid://105708603646268",
+	["paintbrush"] = "rbxassetid://116170048634161",
+	["palette"] = "rbxassetid://91973234300212",
+	["paper-plane"] = "rbxassetid://84096293617435",
+	["paperclip"] = "rbxassetid://104675861538941",
+	["passport"] = "rbxassetid://112257954225409",
+	["pause"] = "rbxassetid://121534471795622",
+	["pause-fill"] = "rbxassetid://103348022852527",
+	["pencil"] = "rbxassetid://132145192304391",
+	["pencil-to-line"] = "rbxassetid://86977727845037",
+	["pencil-to-square"] = "rbxassetid://138949256779509",
+	["percent"] = "rbxassetid://72754559570110",
+	["person"] = "rbxassetid://135548958804125",
+	["person-fill"] = "rbxassetid://93649699513763",
+	["person-gear"] = "rbxassetid://105283855461666",
+	["person-magnifier"] = "rbxassetid://126714669722336",
+	["person-nut-hex"] = "rbxassetid://127185374454347",
+	["person-pencil"] = "rbxassetid://88660023708396",
+	["person-planet-earth"] = "rbxassetid://112713297610152",
+	["person-plus"] = "rbxassetid://126802984104475",
+	["person-speaker"] = "rbxassetid://118694133626529",
+	["person-worker"] = "rbxassetid://72283067948452",
+	["person-xmark"] = "rbxassetid://100514977902172",
+	["persons"] = "rbxassetid://70469668008783",
+	["persons-lock"] = "rbxassetid://125295333446575",
+	["picture"] = "rbxassetid://121179811894958",
+	["pill"] = "rbxassetid://95053376969510",
+	["pin"] = "rbxassetid://98714172077933",
+	["pin-fill"] = "rbxassetid://135455996455542",
+	["pin-slash"] = "rbxassetid://106760998399458",
+	["pin-slash-fill"] = "rbxassetid://135561989808725",
+	["pipeline"] = "rbxassetid://127156532534466",
+	["plane"] = "rbxassetid://111442137230748",
+	["plane-fill"] = "rbxassetid://106514623588033",
+	["planet-earth"] = "rbxassetid://109328327555253",
+	["play"] = "rbxassetid://87316717636842",
+	["play-fill"] = "rbxassetid://81944593209262",
+	["plug-connection"] = "rbxassetid://135837147660701",
+	["plug-wire"] = "rbxassetid://97698299546425",
+	["plus"] = "rbxassetid://80662775071567",
+	["plus-shape"] = "rbxassetid://76944214577840",
+	["plus-shape-fill"] = "rbxassetid://139105857222301",
+	["power"] = "rbxassetid://138353101694958",
+	["printer"] = "rbxassetid://131123146569579",
+	["pulse"] = "rbxassetid://77126153989476",
+	["puzzle"] = "rbxassetid://95674201006671",
+	["qr-code"] = "rbxassetid://130769619091887",
+	["quote-close"] = "rbxassetid://88565840976359",
+	["quote-open"] = "rbxassetid://70929167034922",
+	["receipt"] = "rbxassetid://131474240985462",
+	["rectangle-pulse"] = "rbxassetid://111711523683961",
+	["rectangles-4"] = "rbxassetid://120618780846189",
+	["rocket"] = "rbxassetid://72732501782164",
+	["round-brackets"] = "rbxassetid://101689273727463",
+	["route"] = "rbxassetid://123758427507398",
+	["sack"] = "rbxassetid://79102076460844",
+	["scales-balanced"] = "rbxassetid://84869600023351",
+	["scales-unbalanced"] = "rbxassetid://125351393561428",
+	["scissors"] = "rbxassetid://83891508648427",
+	["seal-check"] = "rbxassetid://114383699967547",
+	["seal-percent"] = "rbxassetid://81252577691087",
+	["server"] = "rbxassetid://103032027904546",
+	["shapes-3"] = "rbxassetid://126934895067024",
+	["shapes-4"] = "rbxassetid://94346755009249",
+	["shield"] = "rbxassetid://126492969629387",
+	["shield-check"] = "rbxassetid://130212494205207",
+	["shield-exclamation"] = "rbxassetid://106149755930805",
+	["shield-keyhole"] = "rbxassetid://132765890698199",
+	["shopping-bag"] = "rbxassetid://119045069462549",
+	["shopping-basket"] = "rbxassetid://75353938654634",
+	["shopping-cart"] = "rbxassetid://124870886755485",
+	["shuffle"] = "rbxassetid://73102173859910",
+	["signal"] = "rbxassetid://90913466131390",
+	["skull"] = "rbxassetid://83420758450923",
+	["sliders"] = "rbxassetid://122721161727239",
+	["sliders-vertical"] = "rbxassetid://76400438334805",
+	["smartphone"] = "rbxassetid://86886555582618",
+	["snail"] = "rbxassetid://115576237784392",
+	["snowflake"] = "rbxassetid://110909689744928",
+	["sparkles"] = "rbxassetid://128421724798018",
+	["sparkles-fill"] = "rbxassetid://78549168418570",
+	["speedometer"] = "rbxassetid://110143476875973",
+	["sphere"] = "rbxassetid://130283294594898",
+	["square"] = "rbxassetid://122997226258883",
+	["square-article"] = "rbxassetid://118698086520012",
+	["square-bars"] = "rbxassetid://134764451469323",
+	["square-bars-vertical"] = "rbxassetid://85407882752366",
+	["square-brackets"] = "rbxassetid://135215679548914",
+	["square-brackets-bars-vertical"] = "rbxassetid://131077560251497",
+	["square-brackets-letter-a"] = "rbxassetid://73723438286165",
+	["square-chart-bar"] = "rbxassetid://71015029807443",
+	["square-chart-column"] = "rbxassetid://108233991388760",
+	["square-check"] = "rbxassetid://129517577270214",
+	["square-dashed"] = "rbxassetid://92148931490321",
+	["square-dashed-circle"] = "rbxassetid://134346520018636",
+	["square-dashed-letter-a"] = "rbxassetid://131729372968637",
+	["square-dashed-letter-t"] = "rbxassetid://136241753535397",
+	["square-dashed-text"] = "rbxassetid://89082306894894",
+	["square-dot"] = "rbxassetid://76761544648980",
+	["square-exclamation"] = "rbxassetid://89733968105684",
+	["square-fill"] = "rbxassetid://114726013880233",
+	["square-hashtag"] = "rbxassetid://96174044824758",
+	["square-letter-p"] = "rbxassetid://80311910925439",
+	["square-letter-t"] = "rbxassetid://104779586576361",
+	["square-line-horizontal"] = "rbxassetid://103870626448212",
+	["square-line-vertical"] = "rbxassetid://138681242128568",
+	["square-list-ul"] = "rbxassetid://121934696651725",
+	["square-minus"] = "rbxassetid://137380824267207",
+	["square-plus"] = "rbxassetid://73319794514420",
+	["square-xmark"] = "rbxassetid://119167539843240",
+	["star"] = "rbxassetid://82714530610376",
+	["star-fill"] = "rbxassetid://112908772848069",
+	["stethoscope"] = "rbxassetid://119209664784890",
+	["sticker"] = "rbxassetid://74654761442741",
+	["stop"] = "rbxassetid://74753225999323",
+	["stop-fill"] = "rbxassetid://129724408640217",
+	["stopwatch"] = "rbxassetid://74070793986442",
+	["strikethrough"] = "rbxassetid://122272460020631",
+	["suitcase"] = "rbxassetid://85738170275917",
+	["sun"] = "rbxassetid://73708402464015",
+	["superscript"] = "rbxassetid://83205898623495",
+	["t-shirt"] = "rbxassetid://126587578410655",
+	["tachometer"] = "rbxassetid://75978178969685",
+	["tag"] = "rbxassetid://73313248079703",
+	["tag-dollar"] = "rbxassetid://123305928004312",
+	["tag-ruble"] = "rbxassetid://138522126576318",
+	["tags"] = "rbxassetid://115994346321994",
+	["target"] = "rbxassetid://83246673249608",
+	["target-dart"] = "rbxassetid://77322579126050",
+	["terminal"] = "rbxassetid://82516228510416",
+	["terminal-line"] = "rbxassetid://109543607242216",
+	["text"] = "rbxassetid://100102832947962",
+	["text-align-center"] = "rbxassetid://100721831476135",
+	["text-align-justify"] = "rbxassetid://85225101337173",
+	["text-align-left"] = "rbxassetid://110886200281818",
+	["text-align-right"] = "rbxassetid://84289940846927",
+	["text-indent"] = "rbxassetid://88989450737244",
+	["text-outdent"] = "rbxassetid://105177909864797",
+	["thumbs-down"] = "rbxassetid://81293559344920",
+	["thumbs-down-fill"] = "rbxassetid://136111475904802",
+	["thumbs-up"] = "rbxassetid://95381074098952",
+	["thumbs-up-2"] = "rbxassetid://88066568102248",
+	["thumbs-up-fill"] = "rbxassetid://76753866435892",
+	["thunderbolt"] = "rbxassetid://72414364939300",
+	["thunderbolt-fill"] = "rbxassetid://108407820702676",
+	["ticket"] = "rbxassetid://133508781907204",
+	["timeline"] = "rbxassetid://72053264904498",
+	["timestamps"] = "rbxassetid://87694590140038",
+	["toggle-off"] = "rbxassetid://72859661230887",
+	["toggle-on"] = "rbxassetid://86779165441121",
+	["traffic-light"] = "rbxassetid://114478626716752",
+	["trapezoid-left-line-horizontal"] = "rbxassetid://115336243014706",
+	["trapezoid-up-line-vertical"] = "rbxassetid://77563309671286",
+	["trash-bin"] = "rbxassetid://103767256411949",
+	["tray"] = "rbxassetid://126858057212120",
+	["triangle-down"] = "rbxassetid://82238326686665",
+	["triangle-down-fill"] = "rbxassetid://73294647242721",
+	["triangle-exclamation"] = "rbxassetid://75884953438553",
+	["triangle-exclamation-fill"] = "rbxassetid://126758384179031",
+	["triangle-left"] = "rbxassetid://80006508286559",
+	["triangle-left-fill"] = "rbxassetid://118587504462189",
+	["triangle-right"] = "rbxassetid://105983229462016",
+	["triangle-right-fill"] = "rbxassetid://105532309942682",
+	["triangle-thunderbolt"] = "rbxassetid://116364993642883",
+	["triangle-up"] = "rbxassetid://75462475600328",
+	["triangle-up-fill"] = "rbxassetid://98393490832027",
+	["trolley"] = "rbxassetid://124134039113349",
+	["tv"] = "rbxassetid://89593768065837",
+	["tv-retro"] = "rbxassetid://121138629350895",
+	["umbrella"] = "rbxassetid://136855445429009",
+	["underline"] = "rbxassetid://111037385861002",
+	["universal-access"] = "rbxassetid://129578549178419",
+	["vault"] = "rbxassetid://93600999120652",
+	["vector-circle"] = "rbxassetid://121395907084692",
+	["vector-square"] = "rbxassetid://88721655919497",
+	["video"] = "rbxassetid://94409367676512",
+	["volume"] = "rbxassetid://77672150892068",
+	["volume-fill"] = "rbxassetid://78065739687252",
+	["volume-low"] = "rbxassetid://83196721920754",
+	["volume-low-fill"] = "rbxassetid://103130247429745",
+	["volume-off"] = "rbxassetid://128835255389731",
+	["volume-off-fill"] = "rbxassetid://95683800715478",
+	["volume-slash"] = "rbxassetid://113444931410054",
+	["volume-slash-fill"] = "rbxassetid://80072301093738",
+	["volume-xmark"] = "rbxassetid://131964141919250",
+	["volume-xmark-fill"] = "rbxassetid://110913274367125",
+	["weight-hanging"] = "rbxassetid://133001442287715",
+	["wrench"] = "rbxassetid://124105097858234",
+	["xmark"] = "rbxassetid://116696831480300",
+	["xmark-shape"] = "rbxassetid://113332623964226",
+	["xmark-shape-fill"] = "rbxassetid://102835594333260",
+}
+
+-- Lucide-style names -> Tree Hub icons.
+-- The library asks for names like "settings", "x", "eye-off", "menu"...
+-- but this icon set calls them "gear", "xmark", "eye-slash", "bars"...
+-- so each Lucide name below points to the matching icon id.
+local IconAliases = {
+	["settings"] = "gear",
+	["cog"] = "gear",
+	["x"] = "xmark",
+	["close"] = "xmark",
+	["eye-off"] = "eye-slash",
+	["minimize-2"] = "chevrons-collapse-up-right",
+	["maximize-2"] = "chevrons-expand-up-right",
+	["menu"] = "bars",
+	["info"] = "circle-info",
+	["triangle-alert"] = "triangle-exclamation",
+	["alert-triangle"] = "triangle-exclamation",
+	["circle-alert"] = "circle-exclamation",
+	["alert-circle"] = "circle-exclamation",
+	["x-circle"] = "circle-xmark",
+	["circle-x"] = "circle-xmark",
+	["check-circle"] = "circle-check",
+	["help-circle"] = "circle-question",
+	["circle-question-mark"] = "circle-question",
+	["search"] = "magnifier",
+	["user"] = "person",
+	["users"] = "persons",
+	["user-plus"] = "person-plus",
+	["trash"] = "trash-bin",
+	["trash-2"] = "trash-bin",
+	["edit"] = "pencil-to-square",
+	["square-pen"] = "pencil-to-square",
+	["save"] = "floppy-disk",
+	["download"] = "arrow-down-to-line",
+	["upload"] = "arrow-up-from-line",
+	["zap"] = "thunderbolt",
+	["crosshair"] = "target",
+	["unlock"] = "lock-open",
+	["mail"] = "envelope",
+	["refresh-cw"] = "arrows-rotate-right",
+	["refresh-ccw"] = "arrows-rotate-left",
+	["rotate-cw"] = "arrow-rotate-right",
+	["rotate-ccw"] = "arrow-rotate-left",
+	["bot"] = "face-robot",
+	["crown"] = "crown-diamond",
+	["volume-2"] = "volume",
+	["volume-x"] = "volume-xmark",
+	["bar-chart"] = "chart-bar",
+	["line-chart"] = "chart-line",
+	["pie-chart"] = "chart-pie",
+	["more-horizontal"] = "ellipsis",
+	["more-vertical"] = "ellipsis-vertical",
+	["layout-dashboard"] = "layout-cells",
+	["sliders-horizontal"] = "sliders",
+	["map"] = "geo",
+	["pointer"] = "hand-point-up",
+	["lightbulb"] = "bulb",
+	["gauge"] = "speedometer",
+	["shield-alert"] = "shield-exclamation",
+	["monitor"] = "display",
+	["smile"] = "face-smile",
+	["frown"] = "face-sad",
+	["lock-keyhole"] = "folder-keyhole",
+	["file-text"] = "file-text",
+	["globe-2"] = "planet-earth",
+}
+
+-- Merge: Tree Hub set (local) + Solar set (7330 icons, loaded from GitHub)
+local SOLAR_URL = "https://raw.githubusercontent.com/Footagesus/Icons/refs/heads/main/solar/dist/Icons.lua"
+
+do
+	local all = {}
+	-- 1) local Tree Hub icons (always available, even offline)
+	for k, v in pairs(IconIDs) do all[k] = v end
+	-- 2) Lucide-style aliases -> Tree Hub icons
+	for alias, real in pairs(IconAliases) do
+		if all[alias] == nil and IconIDs[real] then
+			all[alias] = IconIDs[real]
+		end
+	end
+	-- 3) Solar icons (needs HttpGet; if it fails the Tree Hub icons still work)
+	local okSolar, solar = pcall(function()
+		return loadstring(game:HttpGet(SOLAR_URL))()
+	end)
+	if okSolar and type(solar) == "table" then
+		-- full names, e.g. "home-bold", "home-linear", "home-bold-duotone"
+		for k, v in pairs(solar) do
+			if all[k] == nil then all[k] = v end
+		end
+		-- short names, e.g. "home" (style priority: linear > outline > bold)
+		for _, suffix in ipairs({ "-linear", "-outline", "-bold" }) do
+			for k, v in pairs(solar) do
+				if k:sub(-#suffix) == suffix then
+					local base = k:sub(1, #k - #suffix)
+					if all[base] == nil then all[base] = v end
+				end
+			end
+		end
+	else
+		warn("[SimpleUI] Solar icons failed to load, using the Tree Hub set only.")
+	end
+	Library:SetIconAssets(all)
+end
+
+
 -- Lucide icons taken from a folder in the game (ImageLabels / Decals named after the icon)
 local folderIcons = {}
 
@@ -788,21 +1629,160 @@ end
 --------------------------------------------------------------------
 local TextService = game:GetService("TextService")
 
+--------------------------------------------------------------------
+-- Live style: font family + font size
+-- Used by the window (Interface tab) and by notifications.
+--------------------------------------------------------------------
+local function enumFont(name)
+	local ok, f = pcall(function() return Enum.Font[name] end)
+	if ok and typeof(f) == "EnumItem" then return f end
+	return nil
+end
+
+-- { display name, regular, medium, bold }
+local FontFamilies = {
+	{ "Gotham", "Gotham", "GothamMedium", "GothamBold" },
+	{ "Source Sans", "SourceSans", "SourceSansSemibold", "SourceSansBold" },
+	{ "Arial", "Arial", "Arial", "ArialBold" },
+	{ "Ubuntu", "Ubuntu", "Ubuntu", "Ubuntu" },
+	{ "Nunito", "Nunito", "Nunito", "Nunito" },
+	{ "Roboto", "Roboto", "Roboto", "Roboto" },
+	{ "Oswald", "Oswald", "Oswald", "Oswald" },
+	{ "Jura", "Jura", "Jura", "Jura" },
+	{ "Titillium", "TitilliumWeb", "TitilliumWeb", "TitilliumWeb" },
+	{ "Code", "Code", "Code", "Code" },
+}
+
+local FontMap, FontNames = {}, {}
+for _, fam in ipairs(FontFamilies) do
+	local r, m, b = enumFont(fam[2]), enumFont(fam[3]), enumFont(fam[4])
+	if r and m and b then
+		FontMap[fam[1]] = { regular = r, medium = m, bold = b }
+		table.insert(FontNames, fam[1])
+	end
+end
+Library.FontNames = FontNames
+
+local UIStyle = { Font = "Gotham", FontScale = 1 }
+Library.UIStyle = UIStyle
+
+-- applies the current font (and font size) to one text object.
+-- The original size / weight are remembered in attributes, so changes are never cumulative.
+local function styleText(obj, withSize)
+	if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
+	local weight = obj:GetAttribute("SUI_W")
+	if not weight then
+		local n = obj.Font.Name
+		if n:find("Bold") or n:find("Black") then
+			weight = "bold"
+		elseif n:find("Medium") or n:find("Semibold") then
+			weight = "medium"
+		else
+			weight = "regular"
+		end
+		obj:SetAttribute("SUI_W", weight)
+		obj:SetAttribute("SUI_S", obj.TextSize)
+	end
+	local fam = FontMap[UIStyle.Font] or FontMap.Gotham
+	obj.Font = fam[weight]
+	if withSize ~= false then
+		local base = obj:GetAttribute("SUI_S") or obj.TextSize
+		obj.TextSize = math.clamp(math.floor(base * UIStyle.FontScale + 0.5), 6, 40)
+	end
+end
+
+--------------------------------------------------------------------
+-- Notification settings (all of them are used by Library:Notify)
+--   Library:SetNotifySize(percent)          70-150
+--   Library:SetNotifyPosition("Top Left" ...)
+--   Library:SetNotifyIcon("bell" / rbxassetid / nil)
+--   Library:SetNotifyTransparency(percent)  0-90
+--------------------------------------------------------------------
+local NotifySettings = { Size = 100, Position = "Bottom Right", Icon = nil, Transparency = 0 }
+Library.NotifySettings = NotifySettings
+
+local HA, VA = Enum.HorizontalAlignment, Enum.VerticalAlignment
+-- { anchor X, anchor Y, list horizontal alignment, list vertical alignment }
+local NotifyPositions = {
+	["Top Left"] = { 0, 0, HA.Left, VA.Top },
+	["Top Center"] = { 0.5, 0, HA.Center, VA.Top },
+	["Top Right"] = { 1, 0, HA.Right, VA.Top },
+	["Middle Left"] = { 0, 0.5, HA.Left, VA.Center },
+	["Middle Right"] = { 1, 0.5, HA.Right, VA.Center },
+	["Bottom Left"] = { 0, 1, HA.Left, VA.Bottom },
+	["Bottom Center"] = { 0.5, 1, HA.Center, VA.Bottom },
+	["Bottom Right"] = { 1, 1, HA.Right, VA.Bottom },
+}
+Library.NotifyPositionNames = {
+	"Top Left", "Top Center", "Top Right", "Middle Left", "Middle Right",
+	"Bottom Left", "Bottom Center", "Bottom Right",
+}
+
 local notifyHolder = new("Frame", {
 	Name = "Notifications",
 	ZIndex = 100,
 	BackgroundTransparency = 1,
 	AnchorPoint = Vector2.new(1, 1),
 	Position = UDim2.new(1, -16, 1, -16),
-	Size = UDim2.new(0, 300, 1, -32),
+	Size = UDim2.new(0, 480, 1, -32), -- wide enough for 150% notifications
 }, gui)
 
-new("UIListLayout", {
+local notifyLayout = new("UIListLayout", {
 	SortOrder = Enum.SortOrder.LayoutOrder,
 	VerticalAlignment = Enum.VerticalAlignment.Bottom,
 	HorizontalAlignment = Enum.HorizontalAlignment.Right,
 	Padding = UDim.new(0, 8),
 }, notifyHolder)
+
+local function applyNotifyPosition()
+	local p = NotifyPositions[NotifySettings.Position] or NotifyPositions["Bottom Right"]
+	local ax, ay = p[1], p[2]
+	notifyHolder.AnchorPoint = Vector2.new(ax, ay)
+	notifyHolder.Position = UDim2.new(
+		ax, ax == 0 and 16 or (ax == 1 and -16 or 0),
+		ay, ay == 0 and 16 or (ay == 1 and -16 or 0)
+	)
+	notifyLayout.HorizontalAlignment = p[3]
+	notifyLayout.VerticalAlignment = p[4]
+end
+applyNotifyPosition()
+
+-- the direction a notification slides in from (depends on the position)
+local function slideOffset()
+	local p = NotifyPositions[NotifySettings.Position] or NotifyPositions["Bottom Right"]
+	if p[1] == 0 then return Vector2.new(-70, 0) end
+	if p[1] == 1 then return Vector2.new(70, 0) end
+	return Vector2.new(0, p[2] == 0 and -30 or 30)
+end
+
+local liveCards = {} -- cards currently on screen (so transparency can change live)
+
+function Library:SetNotifySize(pct)
+	NotifySettings.Size = math.clamp(tonumber(pct) or 100, 50, 200)
+end
+
+function Library:SetNotifyPosition(name)
+	if NotifyPositions[name] then
+		NotifySettings.Position = name
+		applyNotifyPosition()
+	end
+end
+
+function Library:SetNotifyIcon(icon)
+	if icon == nil or tostring(icon) == "" then
+		NotifySettings.Icon = nil
+	else
+		NotifySettings.Icon = tostring(icon)
+	end
+end
+
+function Library:SetNotifyTransparency(pct)
+	pct = math.clamp(tonumber(pct) or 0, 0, 90)
+	NotifySettings.Transparency = pct
+	for card in pairs(liveCards) do
+		if card.Parent then card.GroupTransparency = pct / 100 end
+	end
+end
 
 local notifyCount = 0
 
@@ -820,33 +1800,41 @@ function Library:Notify(opts)
 	local accent = opts.Color or kind.color or Theme.Accent
 	notifyCount += 1
 
-	local WIDTH = 300
+	local scale = NotifySettings.Size / 100
+	local alpha = NotifySettings.Transparency / 100
+	local from = slideOffset()
+	local fam = FontMap[UIStyle.Font] or FontMap.Gotham
+
+	local WIDTH = 300 -- base width; the card is scaled with UIScale
 	local content = tostring(opts.Content or "")
 
 	-- measure the message so the card fits it exactly
 	local textH = 0
 	if content ~= "" then
 		local ok, size = pcall(function()
-			return TextService:GetTextSize(content, 12, Enum.Font.Gotham, Vector2.new(WIDTH - 54 - 14, 10000))
+			return TextService:GetTextSize(content, 12, fam.regular, Vector2.new(WIDTH - 54 - 14, 10000))
 		end)
 		textH = ok and size.Y or 16
 	end
 	local height = math.max(58, 30 + textH + 18)
 
+	local slotW = math.floor(WIDTH * scale + 0.5)
 	local slot = new("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(WIDTH, height),
+		Size = UDim2.fromOffset(slotW, math.floor(height * scale + 0.5)),
 		LayoutOrder = notifyCount,
 	}, notifyHolder)
 
 	local card = new("CanvasGroup", {
 		BackgroundColor3 = Theme.Surface,
-		Size = UDim2.fromScale(1, 1),
-		Position = UDim2.fromOffset(70, 0),
+		Size = UDim2.fromOffset(WIDTH, height),
+		Position = UDim2.fromOffset(from.X, from.Y),
 		GroupTransparency = 1,
 	}, slot)
+	new("UIScale", { Scale = scale }, card)
 	corner(card, 10)
 	stroke(card, Theme.Stroke)
+	liveCards[card] = true
 
 	-- colored edge
 	new("Frame", {
@@ -863,7 +1851,7 @@ function Library:Notify(opts)
 		Size = UDim2.fromOffset(28, 28),
 	}, card)
 	corner(badge, 14)
-	local ic = createIcon(badge, opts.Icon or kind.icon, 16, accent, kind.glyph)
+	local ic = createIcon(badge, opts.Icon or NotifySettings.Icon or kind.icon, 16, accent, kind.glyph)
 	ic.AnchorPoint = Vector2.new(0.5, 0.5)
 	ic.Position = UDim2.fromScale(0.5, 0.5)
 
@@ -914,20 +1902,24 @@ function Library:Notify(opts)
 		ZIndex = 5,
 	}, card)
 
-	-- slide in + fade in
-	tween(card, 0.3, { Position = UDim2.fromOffset(0, 0), GroupTransparency = 0 }, Enum.EasingStyle.Quint)
+	-- the notification uses the window font (the size is handled by the size setting)
+	for _, d in ipairs(card:GetDescendants()) do styleText(d, false) end
+
+	-- slide in + fade in (to the chosen transparency)
+	tween(card, 0.3, { Position = UDim2.fromOffset(0, 0), GroupTransparency = alpha }, Enum.EasingStyle.Quint)
 	TweenService:Create(fill, TweenInfo.new(duration, Enum.EasingStyle.Linear), { Size = UDim2.fromScale(0, 1) }):Play()
 
 	local dismissed = false
 	local function dismiss()
 		if dismissed then return end
 		dismissed = true
+		liveCards[card] = nil
 		if not slot.Parent then return end
 		-- slide out + fade out, then the stack collapses smoothly
-		tween(card, 0.22, { Position = UDim2.fromOffset(70, 0), GroupTransparency = 1 })
+		tween(card, 0.22, { Position = UDim2.fromOffset(from.X, from.Y), GroupTransparency = 1 })
 		task.wait(0.23)
 		if not slot.Parent then return end
-		tween(slot, 0.15, { Size = UDim2.fromOffset(WIDTH, 0) })
+		tween(slot, 0.15, { Size = UDim2.fromOffset(slotW, 0) })
 		task.wait(0.16)
 		slot:Destroy()
 	end
@@ -1227,6 +2219,7 @@ function Library:CreateWindow(opts)
 	corner(main, 12)
 	stroke(main, Theme.Stroke)
 	local mainScale = new("UIScale", { Scale = 1 }, main)
+	local uiAlpha = 0 -- window transparency (Window:SetTransparency)
 
 	-- Topbar
 	local top = new("Frame", {
@@ -1544,7 +2537,10 @@ function Library:CreateWindow(opts)
 	function Window:OpenButton(cfg)
 		cfg = cfg or {}
 		if cfg.Size then openBtn.Size = cfg.Size end
-		if cfg.Position then openBtn.Position = cfg.Position end
+		if cfg.Position then
+			openBtn.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
+			openBtn.Position = cfg.Position
+		end
 		if cfg.Color then
 			local c = (lookupColor(cfg.Color))
 			if c then openBtn.BackgroundColor3 = c end
@@ -1613,7 +2609,7 @@ function Library:CreateWindow(opts)
 		main.Visible = true
 		main.GroupTransparency = 1
 		mainScale.Scale = 0.9
-		tween(main, 0.22, { GroupTransparency = 0 })
+		tween(main, 0.22, { GroupTransparency = uiAlpha })
 		tween(mainScale, 0.28, { Scale = 1 }, Enum.EasingStyle.Back)
 		animateTabs(true, token)
 		if Window.Current then showPage(Window.Current, true) end
@@ -1662,7 +2658,7 @@ function Library:CreateWindow(opts)
 		}, gui)
 
 		local box = new("Frame", {
-			BackgroundColor3 = bg,
+			BackgroundColor3 = Theme.Background,
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
 			Size = UDim2.fromOffset(280, 132),
@@ -2853,874 +3849,480 @@ function Library:CreateWindow(opts)
 		return Tab
 	end
 
+	--------------------------------------------------------------
+	-- Interface settings (live)
+	-- Every function below changes the real window / open button right away.
+	-- The "Interface" tab (Window:InterfaceTab) is just a UI on top of them.
+	--   Window:SetTransparency(0-80)      Window:SetColor(Color3 / color name)
+	--   Window:SetSize(70-140)            Window:SetFontSize(80-125)
+	--   Window:SetFont("Gotham" ...)
+	--   Window:SetButtonSize(px)          Window:SetButtonColor(Color3)
+	--   Window:SetButtonName(text)        Window:SetButtonIcon(icon)
+	--   Window:SetButtonTransparency(0-90)
+	--   Window:SetButtonPosition("Left" ...)
+	--------------------------------------------------------------
+	local baseSize = fullSize
+	local ui = { Transparency = 0, SizePct = 100, FontPct = 100, Font = "Gotham" }
+	Window.Settings = ui
+
+	-- keep text styled (font + size) for everything added to the window later
+	table.insert(State.Conns, main.DescendantAdded:Connect(function(d) styleText(d) end))
+
+	-- recolor everything that still has an old theme color
+	local function recolorAll(old)
+		local fills = {
+			{ old.Background, Theme.Background },
+			{ old.Surface, Theme.Surface },
+			{ old.SurfaceHover, Theme.SurfaceHover },
+			{ old.Stroke, Theme.Stroke },
+		}
+		local texts = {
+			{ old.Text, Theme.Text },
+			{ old.SubText, Theme.SubText },
+		}
+		local function map(list, c)
+			for _, p in ipairs(list) do
+				if c == p[1] then return p[2] end
+			end
+			return nil
+		end
+		for _, o in ipairs(gui:GetDescendants()) do
+			if o:IsA("GuiObject") then
+				local n = map(fills, o.BackgroundColor3)
+				if n then o.BackgroundColor3 = n end
+				if o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox") then
+					local t = map(texts, o.TextColor3)
+					if t then o.TextColor3 = t end
+					if o:IsA("TextBox") then
+						local pc = map(texts, o.PlaceholderColor3)
+						if pc then o.PlaceholderColor3 = pc end
+					end
+				elseif o:IsA("ImageLabel") or o:IsA("ImageButton") then
+					local t = map(texts, o.ImageColor3)
+					if t then o.ImageColor3 = t end
+				end
+				if o:IsA("ScrollingFrame") then
+					local s = map(fills, o.ScrollBarImageColor3)
+					if s then o.ScrollBarImageColor3 = s end
+				end
+			elseif o:IsA("UIStroke") then
+				local s = map(fills, o.Color)
+				if s then o.Color = s end
+			end
+		end
+	end
+
+	-- window color (background, cards, borders; the text turns dark on light colors)
+	function Window:SetColor(c)
+		if type(c) == "string" then c = (lookupColor(c)) end
+		if typeof(c) ~= "Color3" then return end
+		local old = {
+			Background = Theme.Background, Surface = Theme.Surface, SurfaceHover = Theme.SurfaceHover,
+			Stroke = Theme.Stroke, Text = Theme.Text, SubText = Theme.SubText,
+		}
+		applyTheme(c)
+		local lum = 0.299 * c.R + 0.587 * c.G + 0.114 * c.B
+		if lum > 0.6 then
+			Theme.Text = Color3.fromRGB(24, 24, 28)
+			Theme.SubText = Color3.fromRGB(95, 95, 105)
+		else
+			Theme.Text = Color3.fromRGB(235, 235, 235)
+			Theme.SubText = Color3.fromRGB(150, 150, 150)
+		end
+		recolorAll(old)
+		ui.Color = c
+	end
+
+	-- window transparency (0 = solid, 80 = almost see-through)
+	function Window:SetTransparency(pct)
+		pct = math.clamp(tonumber(pct) or 0, 0, 80)
+		ui.Transparency = pct
+		uiAlpha = pct / 100
+		if visible then main.GroupTransparency = uiAlpha end
+	end
+
+	-- window size in percent of the size it was created with
+	function Window:SetSize(pct)
+		pct = math.clamp(tonumber(pct) or 100, 70, 140)
+		ui.SizePct = pct
+		local k = pct / 100
+		local w = math.floor(baseSize.X.Offset * k + 0.5)
+		local h = math.floor(baseSize.Y.Offset * k + 0.5)
+		pcall(function()
+			local vp = workspace.CurrentCamera.ViewportSize
+			if baseSize.X.Scale == 0 then w = math.min(w, vp.X - 24) end
+			if baseSize.Y.Scale == 0 then h = math.min(h, vp.Y - 24) end
+		end)
+		fullSize = UDim2.new(baseSize.X.Scale, w, baseSize.Y.Scale, h)
+		if minimized then
+			tween(main, 0.1, { Size = UDim2.new(fullSize.X.Scale, fullSize.X.Offset, 0, 48) })
+		else
+			tween(main, 0.1, { Size = fullSize })
+		end
+	end
+
+	-- font size of the whole window in percent
+	function Window:SetFontSize(pct)
+		pct = math.clamp(tonumber(pct) or 100, 80, 125)
+		ui.FontPct = pct
+		UIStyle.FontScale = pct / 100
+		for _, d in ipairs(main:GetDescendants()) do styleText(d) end
+	end
+
+	-- font family of the whole window (see Library.FontNames)
+	function Window:SetFont(name)
+		if not FontMap[name] then return end
+		ui.Font = name
+		UIStyle.Font = name
+		for _, d in ipairs(main:GetDescendants()) do styleText(d) end
+	end
+
+	-- open button
+	function Window:SetButtonSize(px)
+		px = math.clamp(tonumber(px) or 56, 28, 120)
+		openBtn.Size = UDim2.fromOffset(px, px)
+		refreshOpenButton()
+	end
+
+	function Window:SetButtonColor(c)
+		if type(c) == "string" then c = (lookupColor(c)) end
+		if typeof(c) == "Color3" then openBtn.BackgroundColor3 = c end
+	end
+
+	function Window:SetButtonName(text)
+		text = text ~= nil and tostring(text) or ""
+		openCfg.Name = text ~= "" and text or nil
+		refreshOpenButton()
+	end
+
+	function Window:SetButtonIcon(icon)
+		icon = icon ~= nil and tostring(icon) or ""
+		openCfg.Image = icon ~= "" and icon or nil
+		refreshOpenButton()
+	end
+
+	function Window:SetButtonTransparency(pct)
+		pct = math.clamp(tonumber(pct) or 0, 0, 90)
+		openBtn.BackgroundTransparency = pct / 100
+		openStroke.Transparency = pct / 100
+	end
+
+	-- { anchor X, anchor Y }
+	local ButtonPositions = {
+		["Left"] = { 0, 0.5 }, ["Right"] = { 1, 0.5 },
+		["Top"] = { 0.5, 0 }, ["Bottom"] = { 0.5, 1 },
+		["Top Left"] = { 0, 0 }, ["Top Right"] = { 1, 0 },
+		["Bottom Left"] = { 0, 1 }, ["Bottom Right"] = { 1, 1 },
+		["Center"] = { 0.5, 0.5 },
+	}
+	Window.ButtonPositionNames = {
+		"Left", "Right", "Top", "Bottom", "Top Left", "Top Right", "Bottom Left", "Bottom Right", "Center",
+	}
+
+	function Window:SetButtonPosition(name)
+		local p = ButtonPositions[name]
+		if not p then return end
+		local ax, ay = p[1], p[2]
+		openBtn.AnchorPoint = Vector2.new(ax, ay)
+		openBtn.Position = UDim2.new(
+			ax, ax == 0 and 20 or (ax == 1 and -20 or 0),
+			ay, ay == 0 and 20 or (ay == 1 and -20 or 0)
+		)
+	end
+
+	--------------------------------------------------------------
+	-- Window:InterfaceTab({ Title, Icon })
+	-- Builds the "Interface" tab: window + open button settings.
+	-- Call it after your other tabs so it appears under them.
+	--------------------------------------------------------------
+	function Window:InterfaceTab(topts)
+		topts = topts or {}
+		local Tab = Window:Tab({ Title = topts.Title or "Interface", Icon = topts.Icon or "palette" })
+
+		Tab:Section("Window")
+
+		Tab:Slider({
+			Title = "Window Transparency",
+			Desc = "Fade the whole window",
+			Min = 0, Max = 80, Default = ui.Transparency, Step = 1, Suffix = "%",
+			Callback = function(v) Window:SetTransparency(v) end,
+		})
+
+		Tab:ColorPicker({
+			Title = "Window Color",
+			Desc = "Background, cards and borders",
+			Default = Theme.Background,
+			Callback = function(c) Window:SetColor(c) end,
+		})
+
+		Tab:Slider({
+			Title = "Window Size",
+			Desc = "Scale the window",
+			Min = 70, Max = 140, Default = ui.SizePct, Step = 5, Suffix = "%",
+			Callback = function(v) Window:SetSize(v) end,
+		})
+
+		Tab:Slider({
+			Title = "Font Size",
+			Desc = "Text size of the whole window",
+			Min = 80, Max = 125, Default = ui.FontPct, Step = 5, Suffix = "%",
+			Callback = function(v) Window:SetFontSize(v) end,
+		})
+
+		Tab:Dropdown({
+			Title = "Font",
+			Desc = "Font of the whole window",
+			Options = FontNames,
+			Default = ui.Font,
+			Callback = function(v) Window:SetFont(v) end,
+		})
+
+		Tab:Section("Open Button")
+
+		Tab:Slider({
+			Title = "Button Size",
+			Min = 28, Max = 120, Default = math.max(28, openBtn.Size.Y.Offset), Step = 2, Suffix = " px",
+			Callback = function(v) Window:SetButtonSize(v) end,
+		})
+
+		Tab:ColorPicker({
+			Title = "Button Color",
+			Default = openBtn.BackgroundColor3,
+			Callback = function(c) Window:SetButtonColor(c) end,
+		})
+
+		Tab:Input({
+			Title = "Button Name",
+			Desc = "Text on the button (empty = icon only)",
+			Placeholder = "Name...",
+			Default = openCfg.Name or "",
+			Callback = function(text) Window:SetButtonName(text) end,
+		})
+
+		Tab:Input({
+			Title = "Button Icon",
+			Desc = "Icon name or rbxassetid (empty = default)",
+			Placeholder = "house",
+			Default = type(openCfg.Image) == "string" and openCfg.Image or "",
+			Callback = function(text) Window:SetButtonIcon(text) end,
+		})
+
+		Tab:Slider({
+			Title = "Button Transparency",
+			Min = 0, Max = 90, Default = math.floor(openBtn.BackgroundTransparency * 100 + 0.5), Step = 1, Suffix = "%",
+			Callback = function(v) Window:SetButtonTransparency(v) end,
+		})
+
+		Tab:Dropdown({
+			Title = "Button Position",
+			Desc = "You can also drag the button",
+			Options = Window.ButtonPositionNames,
+			Callback = function(v) Window:SetButtonPosition(v) end,
+		})
+
+		return Tab
+	end
+
+	--------------------------------------------------------------
+	-- Window:NotificationSettings(tab)
+	-- Adds the notification settings at the bottom of any tab
+	-- (call it after the other elements of that tab).
+	--------------------------------------------------------------
+	function Window:NotificationSettings(tab)
+		tab:Section("Notifications")
+
+		tab:Slider({
+			Title = "Notification Size",
+			Desc = "Applies to new notifications",
+			Min = 70, Max = 150, Default = NotifySettings.Size, Step = 5, Suffix = "%",
+			Callback = function(v) Library:SetNotifySize(v) end,
+		})
+
+		tab:Dropdown({
+			Title = "Notification Position",
+			Options = Library.NotifyPositionNames,
+			Default = NotifySettings.Position,
+			Callback = function(v) Library:SetNotifyPosition(v) end,
+		})
+
+		tab:Input({
+			Title = "Notification Icon",
+			Desc = "Icon name or rbxassetid (empty = default)",
+			Placeholder = "bell",
+			Default = NotifySettings.Icon or "",
+			Callback = function(text) Library:SetNotifyIcon(text) end,
+		})
+
+		tab:Slider({
+			Title = "Notification Transparency",
+			Min = 0, Max = 90, Default = NotifySettings.Transparency, Step = 1, Suffix = "%",
+			Callback = function(v) Library:SetNotifyTransparency(v) end,
+		})
+
+		tab:Button({
+			Title = "Test Notification",
+			Desc = "Preview with the current settings",
+			Callback = function()
+				Library:Notify({ Title = "Preview", Content = "This is how notifications look.", Type = "info", Duration = 3 })
+			end,
+		})
+	end
+
 	return Window
 end
 
 --------------------------------------------------------------------
--- ICONS (Tree Hub set)
--- Paste this whole block into the library BEFORE the "-- Example" section
--- (it must come after Library:SetIconAssets is defined, and before
--- Library:KeySystem / Library:CreateWindow are called).
+-- Example
 --------------------------------------------------------------------
-local IconIDs = {
-	["abbr-api"] = "rbxassetid://135442589868056",
-	["abbr-ml"] = "rbxassetid://137903102602332",
-	["abbr-ql"] = "rbxassetid://110049046211149",
-	["abbr-sql"] = "rbxassetid://103476362200814",
-	["abbr-zip"] = "rbxassetid://120035177960621",
-	["alarm"] = "rbxassetid://103714651740365",
-	["alarm-fill"] = "rbxassetid://134908962222196",
-	["almost-equal"] = "rbxassetid://137719956647405",
-	["antenna-signal"] = "rbxassetid://104559571857549",
-	["aperture"] = "rbxassetid://71507557113696",
-	["archive"] = "rbxassetid://138648712889342",
-	["arrow-chevron-down"] = "rbxassetid://90698670707878",
-	["arrow-chevron-left"] = "rbxassetid://97609998912425",
-	["arrow-chevron-right"] = "rbxassetid://108948582252594",
-	["arrow-chevron-up"] = "rbxassetid://115419992736798",
-	["arrow-down"] = "rbxassetid://123939608472713",
-	["arrow-down-from-line"] = "rbxassetid://99325768084725",
-	["arrow-down-left"] = "rbxassetid://121587236109837",
-	["arrow-down-right"] = "rbxassetid://115685270562753",
-	["arrow-down-to-line"] = "rbxassetid://135415490774542",
-	["arrow-down-to-square"] = "rbxassetid://120848266158193",
-	["arrow-left"] = "rbxassetid://88189557452621",
-	["arrow-left-from-line"] = "rbxassetid://116154200261474",
-	["arrow-left-to-line"] = "rbxassetid://105416504042116",
-	["arrow-right"] = "rbxassetid://95123964581528",
-	["arrow-right-arrow-left"] = "rbxassetid://95237050232611",
-	["arrow-right-from-line"] = "rbxassetid://73250388679868",
-	["arrow-right-from-square"] = "rbxassetid://138630384007334",
-	["arrow-right-to-line"] = "rbxassetid://101169643700290",
-	["arrow-right-to-square"] = "rbxassetid://84589002276353",
-	["arrow-rotate-left"] = "rbxassetid://74661102290864",
-	["arrow-rotate-left-number-5"] = "rbxassetid://128917736449941",
-	["arrow-rotate-right"] = "rbxassetid://127787397790437",
-	["arrow-rotate-right-number-5"] = "rbxassetid://86653279618055",
-	["arrow-shape-down"] = "rbxassetid://72218786566992",
-	["arrow-shape-down-from-line"] = "rbxassetid://86427289862341",
-	["arrow-shape-down-to-line"] = "rbxassetid://91327159930160",
-	["arrow-shape-left"] = "rbxassetid://89941924562574",
-	["arrow-shape-left-from-line"] = "rbxassetid://108670324374670",
-	["arrow-shape-left-to-line"] = "rbxassetid://109558157057198",
-	["arrow-shape-right"] = "rbxassetid://100458021003226",
-	["arrow-shape-right-from-line"] = "rbxassetid://84964570689486",
-	["arrow-shape-right-to-line"] = "rbxassetid://115960328054212",
-	["arrow-shape-turn-up-left"] = "rbxassetid://132996249289474",
-	["arrow-shape-turn-up-right"] = "rbxassetid://119618287119462",
-	["arrow-shape-up"] = "rbxassetid://124602193050386",
-	["arrow-shape-up-from-line"] = "rbxassetid://117424691508865",
-	["arrow-shape-up-to-line"] = "rbxassetid://96133419760114",
-	["arrow-up"] = "rbxassetid://100806733672183",
-	["arrow-up-arrow-down"] = "rbxassetid://140168473463286",
-	["arrow-up-from-line"] = "rbxassetid://95503719226933",
-	["arrow-up-from-square"] = "rbxassetid://72403202160720",
-	["arrow-up-from-square-slash"] = "rbxassetid://108335176349985",
-	["arrow-up-left"] = "rbxassetid://134676894387453",
-	["arrow-up-right"] = "rbxassetid://107224539026693",
-	["arrow-up-right-from-square"] = "rbxassetid://92937384604050",
-	["arrow-up-to-line"] = "rbxassetid://110555587066032",
-	["arrow-uturn-ccw-down"] = "rbxassetid://105699476132562",
-	["arrow-uturn-ccw-left"] = "rbxassetid://115664707371307",
-	["arrow-uturn-ccw-right"] = "rbxassetid://126380726894011",
-	["arrow-uturn-cw-down"] = "rbxassetid://134787361730075",
-	["arrow-uturn-cw-left"] = "rbxassetid://139071077829245",
-	["arrow-uturn-cw-right"] = "rbxassetid://91889095232886",
-	["arrows-3-rotate-left"] = "rbxassetid://137959578609474",
-	["arrows-3-rotate-left-letter-a"] = "rbxassetid://120991923936761",
-	["arrows-3-rotate-right"] = "rbxassetid://84915394441695",
-	["arrows-expand"] = "rbxassetid://122410949695631",
-	["arrows-expand-horizontal"] = "rbxassetid://133458600060285",
-	["arrows-expand-vertical"] = "rbxassetid://126477345242638",
-	["arrows-opposite-to-dots"] = "rbxassetid://109943465092674",
-	["arrows-rotate-left"] = "rbxassetid://119636631750077",
-	["arrows-rotate-left-slash"] = "rbxassetid://83953788137425",
-	["arrows-rotate-right"] = "rbxassetid://71163834754608",
-	["arrows-rotate-right-slash"] = "rbxassetid://71635699550719",
-	["at"] = "rbxassetid://71604977143985",
-	["backward-step"] = "rbxassetid://115416356295964",
-	["backward-step-fill"] = "rbxassetid://73165472334476",
-	["ban"] = "rbxassetid://81039427320809",
-	["bars"] = "rbxassetid://78693767420779",
-	["bars-ascending-align-center"] = "rbxassetid://84484070067864",
-	["bars-ascending-align-left"] = "rbxassetid://139158749201798",
-	["bars-ascending-align-left-arrow-down"] = "rbxassetid://128006052892634",
-	["bars-ascending-align-left-arrow-up"] = "rbxassetid://96654587441659",
-	["bars-ascending-align-right"] = "rbxassetid://123301249654664",
-	["bars-descending-align-center"] = "rbxassetid://99351433688614",
-	["bars-descending-align-left"] = "rbxassetid://118174229311920",
-	["bars-descending-align-left-arrow-down"] = "rbxassetid://104541816646102",
-	["bars-descending-align-left-arrow-up"] = "rbxassetid://115635127737647",
-	["bars-descending-align-right"] = "rbxassetid://87267446493492",
-	["bars-play"] = "rbxassetid://108518006095531",
-	["bars-unaligned"] = "rbxassetid://100960781217209",
-	["bell"] = "rbxassetid://78246583582436",
-	["bell-dot"] = "rbxassetid://136008595824222",
-	["bell-fill"] = "rbxassetid://86681986971272",
-	["bell-slash"] = "rbxassetid://117431958262965",
-	["binoculars"] = "rbxassetid://79600106885790",
-	["bold"] = "rbxassetid://72536284189901",
-	["book"] = "rbxassetid://81445376833998",
-	["book-open"] = "rbxassetid://70499214384560",
-	["bookmark"] = "rbxassetid://92062140569721",
-	["bookmark-fill"] = "rbxassetid://102864828026385",
-	["books"] = "rbxassetid://94122657588748",
-	["box"] = "rbxassetid://75012424452065",
-	["boxes-3"] = "rbxassetid://87626327475239",
-	["branches-down"] = "rbxassetid://130945471079494",
-	["branches-right"] = "rbxassetid://85923853676231",
-	["branches-right-arrow-right"] = "rbxassetid://112215804244328",
-	["briefcase"] = "rbxassetid://71551404712337",
-	["briefcase-fill"] = "rbxassetid://85257920743453",
-	["broadcast-signal"] = "rbxassetid://102816146091577",
-	["broom-motion"] = "rbxassetid://76078843644229",
-	["broom-motion-fill"] = "rbxassetid://124943679507818",
-	["brush"] = "rbxassetid://107845488140370",
-	["bucket"] = "rbxassetid://121417289879029",
-	["bucket-paint"] = "rbxassetid://99596953231201",
-	["bug"] = "rbxassetid://98670706168887",
-	["bulb"] = "rbxassetid://93108336233221",
-	["calculator"] = "rbxassetid://137475273962332",
-	["calendar"] = "rbxassetid://116377708026056",
-	["calendar-xmark"] = "rbxassetid://104770084996807",
-	["camera"] = "rbxassetid://81803093224716",
-	["car"] = "rbxassetid://120604577353177",
-	["card-club"] = "rbxassetid://127117910964137",
-	["card-diamond"] = "rbxassetid://80236056413008",
-	["card-heart"] = "rbxassetid://120906275097794",
-	["card-spade"] = "rbxassetid://115590808323293",
-	["caret-down"] = "rbxassetid://79701968834514",
-	["caret-left"] = "rbxassetid://89316921568167",
-	["caret-right"] = "rbxassetid://139321289081149",
-	["caret-up"] = "rbxassetid://83059411586095",
-	["carets-expand-vertical"] = "rbxassetid://133896897248826",
-	["chart-area-stacked"] = "rbxassetid://130180931327397",
-	["chart-area-stacked-normalized"] = "rbxassetid://103830652069922",
-	["chart-bar"] = "rbxassetid://135127077453879",
-	["chart-bar-stacked"] = "rbxassetid://122493586521135",
-	["chart-column"] = "rbxassetid://94234923490933",
-	["chart-column-stacked"] = "rbxassetid://84907763465405",
-	["chart-donut"] = "rbxassetid://70741662222470",
-	["chart-line"] = "rbxassetid://75770898321861",
-	["chart-line-arrow-up"] = "rbxassetid://128755383700684",
-	["chart-line-label"] = "rbxassetid://78343344318924",
-	["chart-line-points"] = "rbxassetid://71936816563951",
-	["chart-mixed"] = "rbxassetid://129003368317817",
-	["chart-pie"] = "rbxassetid://133652199723190",
-	["chart-treemap"] = "rbxassetid://121384142935035",
-	["check"] = "rbxassetid://103056138350584",
-	["check-double"] = "rbxassetid://88408199250132",
-	["check-shape"] = "rbxassetid://90791112302147",
-	["check-shape-fill"] = "rbxassetid://106578333608881",
-	["cherry"] = "rbxassetid://131117375627466",
-	["chevron-down"] = "rbxassetid://101196795066767",
-	["chevron-down-wide"] = "rbxassetid://98214643270970",
-	["chevron-left"] = "rbxassetid://96477998975284",
-	["chevron-right"] = "rbxassetid://133716111451411",
-	["chevron-up"] = "rbxassetid://81099149547925",
-	["chevron-up-wide"] = "rbxassetid://114214751384551",
-	["chevrons-collapse-from-lines"] = "rbxassetid://117887712595429",
-	["chevrons-collapse-horizontal"] = "rbxassetid://132606049984534",
-	["chevrons-collapse-to-line"] = "rbxassetid://139365137473627",
-	["chevrons-collapse-up-right"] = "rbxassetid://114550385026285",
-	["chevrons-collapse-vertical"] = "rbxassetid://88863993031023",
-	["chevrons-down"] = "rbxassetid://123759343294827",
-	["chevrons-down-wide"] = "rbxassetid://126852609626773",
-	["chevrons-expand-from-line"] = "rbxassetid://81584080383503",
-	["chevrons-expand-horizontal"] = "rbxassetid://100945919368709",
-	["chevrons-expand-to-lines"] = "rbxassetid://87651107148342",
-	["chevrons-expand-up-right"] = "rbxassetid://94174346416829",
-	["chevrons-expand-vertical"] = "rbxassetid://93809445072743",
-	["chevrons-left"] = "rbxassetid://102534065706809",
-	["chevrons-right"] = "rbxassetid://96202292878843",
-	["chevrons-up"] = "rbxassetid://78078270586609",
-	["chevrons-up-wide"] = "rbxassetid://131005459829839",
-	["circle"] = "rbxassetid://137383572905673",
-	["circle-arrow-down"] = "rbxassetid://120314249950202",
-	["circle-arrow-down-fill"] = "rbxassetid://91451793265769",
-	["circle-arrow-left"] = "rbxassetid://123388016121218",
-	["circle-arrow-left-fill"] = "rbxassetid://120596831742130",
-	["circle-arrow-right"] = "rbxassetid://101229493655480",
-	["circle-arrow-right-fill"] = "rbxassetid://113087947378891",
-	["circle-arrow-up"] = "rbxassetid://121237631084166",
-	["circle-arrow-up-fill"] = "rbxassetid://124180379825426",
-	["circle-check"] = "rbxassetid://84441736605020",
-	["circle-check-fill"] = "rbxassetid://136945651864502",
-	["circle-chevron-down"] = "rbxassetid://122051087562651",
-	["circle-chevron-down-fill"] = "rbxassetid://113557422611978",
-	["circle-chevron-left"] = "rbxassetid://89977279697563",
-	["circle-chevron-left-fill"] = "rbxassetid://119025519682054",
-	["circle-chevron-right"] = "rbxassetid://73607483249296",
-	["circle-chevron-right-fill"] = "rbxassetid://95916652600208",
-	["circle-chevron-up"] = "rbxassetid://97772187879743",
-	["circle-chevron-up-fill"] = "rbxassetid://120393306329974",
-	["circle-chevrons-down"] = "rbxassetid://85496131237752",
-	["circle-chevrons-left"] = "rbxassetid://98715112437146",
-	["circle-chevrons-right"] = "rbxassetid://79444813576823",
-	["circle-chevrons-up"] = "rbxassetid://101477927637665",
-	["circle-dashed"] = "rbxassetid://122858665756800",
-	["circle-dollar"] = "rbxassetid://82400975917075",
-	["circle-exclamation"] = "rbxassetid://82169163218994",
-	["circle-exclamation-fill"] = "rbxassetid://97043397618250",
-	["circle-fill"] = "rbxassetid://94990574750335",
-	["circle-info"] = "rbxassetid://94896614951723",
-	["circle-info-fill"] = "rbxassetid://104842691994208",
-	["circle-letter-a"] = "rbxassetid://110682804507256",
-	["circle-letter-b"] = "rbxassetid://131915066352114",
-	["circle-letter-c"] = "rbxassetid://120338087811400",
-	["circle-letter-d"] = "rbxassetid://130741771880107",
-	["circle-letter-e"] = "rbxassetid://138887757846336",
-	["circle-letter-f"] = "rbxassetid://100273312746183",
-	["circle-letter-g"] = "rbxassetid://138724669470541",
-	["circle-letter-h"] = "rbxassetid://108122906545875",
-	["circle-letter-i"] = "rbxassetid://115119050404830",
-	["circle-letter-j"] = "rbxassetid://114756737367727",
-	["circle-letter-k"] = "rbxassetid://76746119020732",
-	["circle-letter-l"] = "rbxassetid://121394965902583",
-	["circle-letter-m"] = "rbxassetid://94265144812900",
-	["circle-letter-n"] = "rbxassetid://78178247320190",
-	["circle-letter-o"] = "rbxassetid://132976570923110",
-	["circle-letter-p"] = "rbxassetid://108919995898285",
-	["circle-letter-q"] = "rbxassetid://108843487550689",
-	["circle-letter-r"] = "rbxassetid://98326067563194",
-	["circle-letter-s"] = "rbxassetid://103894277089244",
-	["circle-letter-t"] = "rbxassetid://131148273820031",
-	["circle-letter-u"] = "rbxassetid://127458231439418",
-	["circle-letter-v"] = "rbxassetid://101002192432518",
-	["circle-letter-w"] = "rbxassetid://77310450045931",
-	["circle-letter-x"] = "rbxassetid://135153805304501",
-	["circle-letter-y"] = "rbxassetid://128644240416254",
-	["circle-letter-z"] = "rbxassetid://77875031623708",
-	["circle-link"] = "rbxassetid://70534705255826",
-	["circle-minus"] = "rbxassetid://109230493518470",
-	["circle-minus-fill"] = "rbxassetid://82217360639927",
-	["circle-number-0"] = "rbxassetid://139948957580308",
-	["circle-number-1"] = "rbxassetid://109640039151570",
-	["circle-number-2"] = "rbxassetid://92480552098950",
-	["circle-number-3"] = "rbxassetid://103817768553696",
-	["circle-number-4"] = "rbxassetid://94141847254472",
-	["circle-number-5"] = "rbxassetid://129276854981437",
-	["circle-number-6"] = "rbxassetid://80118979117292",
-	["circle-number-7"] = "rbxassetid://135668138548066",
-	["circle-number-8"] = "rbxassetid://138966720517801",
-	["circle-number-9"] = "rbxassetid://88336496960699",
-	["circle-pause"] = "rbxassetid://125456661498548",
-	["circle-pause-fill"] = "rbxassetid://119839378934874",
-	["circle-play"] = "rbxassetid://131885354857527",
-	["circle-play-fill"] = "rbxassetid://116647054855820",
-	["circle-plus"] = "rbxassetid://129360492879939",
-	["circle-plus-fill"] = "rbxassetid://78315607252810",
-	["circle-question"] = "rbxassetid://93356247795233",
-	["circle-question-dot"] = "rbxassetid://77195781813589",
-	["circle-question-fill"] = "rbxassetid://109914335358349",
-	["circle-ruble"] = "rbxassetid://99021046363225",
-	["circle-stop"] = "rbxassetid://130063510431342",
-	["circle-stop-fill"] = "rbxassetid://100877093103614",
-	["circle-tree"] = "rbxassetid://85080090742001",
-	["circle-xmark"] = "rbxassetid://130360653653495",
-	["circle-xmark-fill"] = "rbxassetid://101136893109914",
-	["circles-3-plus"] = "rbxassetid://112285424384524",
-	["circles-4-diamond"] = "rbxassetid://124361523430952",
-	["circles-4-square"] = "rbxassetid://96622207131032",
-	["circles-5-random"] = "rbxassetid://104341448925971",
-	["circles-concentric"] = "rbxassetid://112364968682650",
-	["circles-intersection"] = "rbxassetid://73334375522049",
-	["clock"] = "rbxassetid://95091173743042",
-	["clock-arrow-rotate-left"] = "rbxassetid://127310177043478",
-	["clock-fill"] = "rbxassetid://117237925777447",
-	["cloud"] = "rbxassetid://101918816626609",
-	["cloud-arrow-up-in"] = "rbxassetid://137117278628772",
-	["cloud-check"] = "rbxassetid://103059266691426",
-	["cloud-gear"] = "rbxassetid://110509558530780",
-	["cloud-nut-hex"] = "rbxassetid://125304015018252",
-	["cloud-slash"] = "rbxassetid://88532364599721",
-	["clouds"] = "rbxassetid://79789514014401",
-	["code"] = "rbxassetid://127032800584061",
-	["code-commit"] = "rbxassetid://111643949198037",
-	["code-commit-horizontal"] = "rbxassetid://127576006316043",
-	["code-commits"] = "rbxassetid://91309338263007",
-	["code-compare"] = "rbxassetid://138656697539302",
-	["code-fork"] = "rbxassetid://104298384240721",
-	["code-merge"] = "rbxassetid://104709907415001",
-	["code-pull-request"] = "rbxassetid://108743032859939",
-	["code-pull-request-arrow-left"] = "rbxassetid://98599280503024",
-	["code-pull-request-arrow-right"] = "rbxassetid://129705050027475",
-	["code-pull-request-check"] = "rbxassetid://103378571731120",
-	["code-pull-request-xmark"] = "rbxassetid://78829301966639",
-	["code-trunk"] = "rbxassetid://103810952923597",
-	["comment"] = "rbxassetid://109466230642253",
-	["comment-dot"] = "rbxassetid://134629650483759",
-	["comment-fill"] = "rbxassetid://112831725085208",
-	["comment-plus"] = "rbxassetid://98359578614408",
-	["comment-slash"] = "rbxassetid://138995689318032",
-	["comments"] = "rbxassetid://112347681716575",
-	["compass"] = "rbxassetid://111538538589488",
-	["copy"] = "rbxassetid://122456870046625",
-	["copy-arrow-right"] = "rbxassetid://104912869060624",
-	["copy-check"] = "rbxassetid://76642966313268",
-	["copy-check-xmark"] = "rbxassetid://122253044982865",
-	["copy-chevron-right"] = "rbxassetid://114153241555814",
-	["copy-minus"] = "rbxassetid://96922644771240",
-	["copy-picture"] = "rbxassetid://72428819718946",
-	["copy-plus"] = "rbxassetid://137867936354461",
-	["copy-transparent"] = "rbxassetid://124327837016861",
-	["copy-xmark"] = "rbxassetid://127865292095709",
-	["cpu"] = "rbxassetid://85871203780132",
-	["cpus"] = "rbxassetid://70602536224036",
-	["credit-card"] = "rbxassetid://119980351960932",
-	["crop"] = "rbxassetid://92000335381082",
-	["crown-diamond"] = "rbxassetid://137870034022669",
-	["cube"] = "rbxassetid://127347610823511",
-	["cubes-3"] = "rbxassetid://78370998312932",
-	["cubes-3-overlap"] = "rbxassetid://86277627995457",
-	["cup"] = "rbxassetid://101351327561915",
-	["curly-brackets"] = "rbxassetid://109276236803255",
-	["curly-brackets-function"] = "rbxassetid://112157245376014",
-	["curly-brackets-lock"] = "rbxassetid://134432768252956",
-	["database"] = "rbxassetid://70527848574090",
-	["database-arrow-right"] = "rbxassetid://101415863987351",
-	["database-fill"] = "rbxassetid://133484249821797",
-	["database-magnifier"] = "rbxassetid://125148893054496",
-	["databases"] = "rbxassetid://90706490669456",
-	["databases-fill"] = "rbxassetid://124304495065051",
-	["delete"] = "rbxassetid://81915416250149",
-	["diamond"] = "rbxassetid://104594307062320",
-	["diamond-exclamation"] = "rbxassetid://72475760887740",
-	["diamond-exclamation-fill"] = "rbxassetid://92750439068579",
-	["diamond-fill"] = "rbxassetid://96228419948263",
-	["dice-1"] = "rbxassetid://103689239525832",
-	["dice-2"] = "rbxassetid://96389219075812",
-	["dice-3"] = "rbxassetid://70621804370506",
-	["dice-4"] = "rbxassetid://89218365690474",
-	["dice-5"] = "rbxassetid://131630624927476",
-	["dice-6"] = "rbxassetid://138833379439041",
-	["display"] = "rbxassetid://80550180662275",
-	["display-pulse"] = "rbxassetid://138647930249888",
-	["dots-9"] = "rbxassetid://122077000646371",
-	["droplet"] = "rbxassetid://85217490213932",
-	["ear"] = "rbxassetid://135065014224646",
-	["ellipsis"] = "rbxassetid://108825746682489",
-	["ellipsis-vertical"] = "rbxassetid://97426157363170",
-	["envelope"] = "rbxassetid://109118565314106",
-	["envelope-open"] = "rbxassetid://105358726132066",
-	["envelope-open-xmark"] = "rbxassetid://80866920799385",
-	["equal"] = "rbxassetid://93419050665965",
-	["eraser"] = "rbxassetid://106523014738195",
-	["exclamation-shape"] = "rbxassetid://77426370164778",
-	["exclamation-shape-fill"] = "rbxassetid://93650541968093",
-	["eye"] = "rbxassetid://120707831495409",
-	["eye-closed"] = "rbxassetid://72035002941128",
-	["eye-dashed"] = "rbxassetid://94920104462212",
-	["eye-slash"] = "rbxassetid://74632388395769",
-	["eyes-look-left"] = "rbxassetid://135888127006421",
-	["eyes-look-right"] = "rbxassetid://115523274237362",
-	["face-alien"] = "rbxassetid://122493985129489",
-	["face-angry"] = "rbxassetid://105657465280044",
-	["face-fun"] = "rbxassetid://125279182467038",
-	["face-neutral"] = "rbxassetid://71086502634377",
-	["face-neutral-dashed"] = "rbxassetid://78798054777773",
-	["face-robot"] = "rbxassetid://105302404019498",
-	["face-robot-smile"] = "rbxassetid://74419780881388",
-	["face-sad"] = "rbxassetid://119695487707918",
-	["face-smile"] = "rbxassetid://79817174074777",
-	["face-surprise"] = "rbxassetid://94214134808069",
-	["factory"] = "rbxassetid://84085474112768",
-	["file"] = "rbxassetid://107833047300916",
-	["file-arrow-down"] = "rbxassetid://110456463755544",
-	["file-arrow-left"] = "rbxassetid://91953364759480",
-	["file-arrow-right"] = "rbxassetid://75382423167566",
-	["file-arrow-right-out"] = "rbxassetid://91570928055045",
-	["file-arrow-up"] = "rbxassetid://103734210881903",
-	["file-check"] = "rbxassetid://85119975202211",
-	["file-code"] = "rbxassetid://126119599889094",
-	["file-dollar"] = "rbxassetid://88995968130496",
-	["file-exclamation"] = "rbxassetid://137422014587320",
-	["file-letter-p"] = "rbxassetid://117140793705373",
-	["file-letter-w"] = "rbxassetid://72104258718446",
-	["file-letter-x"] = "rbxassetid://73195755082293",
-	["file-magnifier"] = "rbxassetid://126110080855699",
-	["file-minus"] = "rbxassetid://95479115601838",
-	["file-plus"] = "rbxassetid://105240495106677",
-	["file-question"] = "rbxassetid://100446629151131",
-	["file-ruble"] = "rbxassetid://74637291969088",
-	["file-text"] = "rbxassetid://133376156175387",
-	["file-xmark"] = "rbxassetid://139863878410957",
-	["file-zipper"] = "rbxassetid://71253058147459",
-	["files"] = "rbxassetid://83062861217187",
-	["filmstrip"] = "rbxassetid://98311073132457",
-	["fingerprint"] = "rbxassetid://109038457478113",
-	["firewall"] = "rbxassetid://119509701461101",
-	["flag"] = "rbxassetid://123555524822059",
-	["flame"] = "rbxassetid://118156841707888",
-	["flask"] = "rbxassetid://100829678702990",
-	["floppy-disk"] = "rbxassetid://123778614731407",
-	["folder"] = "rbxassetid://121178377882882",
-	["folder-arrow-down"] = "rbxassetid://97468473569904",
-	["folder-arrow-left"] = "rbxassetid://105044315724840",
-	["folder-arrow-right"] = "rbxassetid://134579629548406",
-	["folder-arrow-up"] = "rbxassetid://107063036939545",
-	["folder-arrow-up-in"] = "rbxassetid://117563761638574",
-	["folder-check"] = "rbxassetid://104012006265308",
-	["folder-code"] = "rbxassetid://107125298152045",
-	["folder-exclamation"] = "rbxassetid://76140673562587",
-	["folder-fill"] = "rbxassetid://101900623025419",
-	["folder-flows"] = "rbxassetid://137790120021992",
-	["folder-house"] = "rbxassetid://94345069309317",
-	["folder-keyhole"] = "rbxassetid://120770116606982",
-	["folder-lock"] = "rbxassetid://105884426146404",
-	["folder-magnifier"] = "rbxassetid://122954171576076",
-	["folder-open"] = "rbxassetid://116588458323209",
-	["folder-open-fill"] = "rbxassetid://102372531181401",
-	["folder-plus"] = "rbxassetid://121839906515471",
-	["folder-tree"] = "rbxassetid://84827525485024",
-	["folders"] = "rbxassetid://78596087518530",
-	["font"] = "rbxassetid://113737577046086",
-	["font-case"] = "rbxassetid://109181669437944",
-	["font-cursor"] = "rbxassetid://79018629030822",
-	["forward-step"] = "rbxassetid://76735557633834",
-	["forward-step-fill"] = "rbxassetid://131398028156993",
-	["frame"] = "rbxassetid://121828062350954",
-	["frames"] = "rbxassetid://71233848128981",
-	["function"] = "rbxassetid://84386313846201",
-	["funnel"] = "rbxassetid://95476072665064",
-	["funnel-xmark"] = "rbxassetid://106950038809874",
-	["gear"] = "rbxassetid://130653350850377",
-	["gear-branches"] = "rbxassetid://124635609929435",
-	["gear-dot"] = "rbxassetid://94678631000745",
-	["gear-play"] = "rbxassetid://132051405025286",
-	["gem"] = "rbxassetid://123582791292356",
-	["geo"] = "rbxassetid://112530836084262",
-	["geo-dots"] = "rbxassetid://125473964555170",
-	["geo-fill"] = "rbxassetid://125270420058642",
-	["geo-pin"] = "rbxassetid://77931214242710",
-	["geo-polygons"] = "rbxassetid://86291018663554",
-	["ghost"] = "rbxassetid://106544313918701",
-	["gift"] = "rbxassetid://88942366605587",
-	["globe"] = "rbxassetid://124472253147461",
-	["gpu"] = "rbxassetid://80435443421528",
-	["graduation-cap"] = "rbxassetid://72291379767367",
-	["graph-node"] = "rbxassetid://121418203381727",
-	["grip"] = "rbxassetid://77797757994986",
-	["grip-horizontal"] = "rbxassetid://103457330094853",
-	["hammer"] = "rbxassetid://96934135124621",
-	["hand"] = "rbxassetid://88875046551218",
-	["hand-ok"] = "rbxassetid://73421195330990",
-	["hand-point-down"] = "rbxassetid://133449559362454",
-	["hand-point-left"] = "rbxassetid://75545630547214",
-	["hand-point-right"] = "rbxassetid://96326952803878",
-	["hand-point-up"] = "rbxassetid://76992889322585",
-	["hand-stop"] = "rbxassetid://95261381545988",
-	["handset"] = "rbxassetid://94749731410407",
-	["handset-arrow-in"] = "rbxassetid://127330216639355",
-	["handset-arrow-out"] = "rbxassetid://136244597857388",
-	["hard-drive"] = "rbxassetid://134209413192545",
-	["hashtag"] = "rbxassetid://104931068902382",
-	["heading"] = "rbxassetid://114958398586380",
-	["heading-1"] = "rbxassetid://83778976927134",
-	["heading-2"] = "rbxassetid://133304878410887",
-	["heading-3"] = "rbxassetid://73341928217597",
-	["heading-4"] = "rbxassetid://77755375432268",
-	["heading-5"] = "rbxassetid://78067061590164",
-	["heading-6"] = "rbxassetid://139894519888639",
-	["headphones"] = "rbxassetid://103286933144222",
-	["heart"] = "rbxassetid://113973336125121",
-	["heart-crack"] = "rbxassetid://114161017562451",
-	["heart-fill"] = "rbxassetid://113631886629502",
-	["heart-pulse"] = "rbxassetid://94559254303679",
-	["hierarchy"] = "rbxassetid://87193001404534",
-	["house"] = "rbxassetid://84017953453024",
-	["house-fill"] = "rbxassetid://71433571410756",
-	["italic"] = "rbxassetid://81115641708810",
-	["key"] = "rbxassetid://103889368375394",
-	["keyboard"] = "rbxassetid://130539369569844",
-	["layers"] = "rbxassetid://129316465231678",
-	["layers-3-diagonal"] = "rbxassetid://120377297652057",
-	["layers-vertical"] = "rbxassetid://110354922373224",
-	["layout-cells"] = "rbxassetid://98696521748547",
-	["layout-cells-large"] = "rbxassetid://100255098354000",
-	["layout-columns"] = "rbxassetid://84427832581937",
-	["layout-columns-3"] = "rbxassetid://71735447854881",
-	["layout-footer"] = "rbxassetid://113622765670575",
-	["layout-header"] = "rbxassetid://105610307834609",
-	["layout-header-cells"] = "rbxassetid://131170467534038",
-	["layout-header-cells-large"] = "rbxassetid://137791004130120",
-	["layout-header-cells-large-fill"] = "rbxassetid://70589884836899",
-	["layout-header-cells-large-letter-d"] = "rbxassetid://117150888842613",
-	["layout-header-cells-large-thunderbolt"] = "rbxassetid://70539880056080",
-	["layout-header-columns"] = "rbxassetid://127466539759012",
-	["layout-header-cursor"] = "rbxassetid://94950003069391",
-	["layout-header-side-content"] = "rbxassetid://111700822607720",
-	["layout-list"] = "rbxassetid://93047942420928",
-	["layout-rows"] = "rbxassetid://100647663038001",
-	["layout-rows-3"] = "rbxassetid://90425482127526",
-	["layout-side-content"] = "rbxassetid://112944931847823",
-	["layout-side-content-left"] = "rbxassetid://82393275916629",
-	["layout-side-content-right"] = "rbxassetid://106198598011193",
-	["layout-split-columns"] = "rbxassetid://81956652547064",
-	["layout-split-columns-3"] = "rbxassetid://135156385761292",
-	["layout-split-rows"] = "rbxassetid://120184403763480",
-	["layout-split-side-content-left"] = "rbxassetid://115583962402116",
-	["layout-split-side-content-right"] = "rbxassetid://125684182014400",
-	["layout-tabs"] = "rbxassetid://123109511030647",
-	["letter-a-underline"] = "rbxassetid://137318351668255",
-	["letter-group"] = "rbxassetid://134098861018996",
-	["letter-m"] = "rbxassetid://124776688403365",
-	["life-ring"] = "rbxassetid://124114396162528",
-	["link"] = "rbxassetid://127654461623913",
-	["link-slash"] = "rbxassetid://86714437340868",
-	["list-check"] = "rbxassetid://72975481210972",
-	["list-check-lock"] = "rbxassetid://95781063192246",
-	["list-ol"] = "rbxassetid://123831960497637",
-	["list-timeline"] = "rbxassetid://75879925920734",
-	["list-ul"] = "rbxassetid://123133222715096",
-	["location-arrow"] = "rbxassetid://71897095805613",
-	["location-arrow-fill"] = "rbxassetid://94565046462607",
-	["lock"] = "rbxassetid://132362477716273",
-	["lock-fill"] = "rbxassetid://78340628553221",
-	["lock-open"] = "rbxassetid://81326871090745",
-	["lock-open-fill"] = "rbxassetid://131243965606901",
-	["logo-acrobat"] = "rbxassetid://77758480016386",
-	["logo-android"] = "rbxassetid://85377374331361",
-	["logo-debian"] = "rbxassetid://93074623442525",
-	["logo-docker"] = "rbxassetid://112115815862225",
-	["logo-draw-io"] = "rbxassetid://96320557568840",
-	["logo-facebook"] = "rbxassetid://91676718976544",
-	["logo-figma"] = "rbxassetid://127053693352358",
-	["logo-github"] = "rbxassetid://109140464637712",
-	["logo-gitlab"] = "rbxassetid://112942421350236",
-	["logo-linkedin"] = "rbxassetid://137058953014556",
-	["logo-linux"] = "rbxassetid://112716255017277",
-	["logo-macos"] = "rbxassetid://115977192058220",
-	["logo-markdown"] = "rbxassetid://94192304735756",
-	["logo-mcp"] = "rbxassetid://99978388756048",
-	["logo-mermaid"] = "rbxassetid://113773127670999",
-	["logo-microsoft-office"] = "rbxassetid://72281287708367",
-	["logo-nodejs"] = "rbxassetid://85662644955233",
-	["logo-notion"] = "rbxassetid://112104007451593",
-	["logo-osi"] = "rbxassetid://129020182333515",
-	["logo-python"] = "rbxassetid://108546719377285",
-	["logo-slack"] = "rbxassetid://96956955585721",
-	["logo-stack-overflow"] = "rbxassetid://108294339893412",
-	["logo-telegram"] = "rbxassetid://78021764535568",
-	["logo-ubuntu"] = "rbxassetid://87355948774846",
-	["logo-windows"] = "rbxassetid://103987175937231",
-	["logo-yandex"] = "rbxassetid://85363542282523",
-	["logo-yandex-cloud"] = "rbxassetid://70811487120976",
-	["logo-yandex-messenger"] = "rbxassetid://101194358875111",
-	["logo-yandex-tracker"] = "rbxassetid://118664096172733",
-	["magic-wand"] = "rbxassetid://117815236842546",
-	["magnet"] = "rbxassetid://87480686988492",
-	["magnifier"] = "rbxassetid://122754210010897",
-	["magnifier-minus"] = "rbxassetid://84516692474671",
-	["magnifier-plus"] = "rbxassetid://94022624784789",
-	["map-pin"] = "rbxassetid://88496867972782",
-	["map-pin-minus"] = "rbxassetid://127988204475002",
-	["map-pin-plus"] = "rbxassetid://105808264416140",
-	["math-intersection-shape"] = "rbxassetid://106794166770550",
-	["math-operations"] = "rbxassetid://103226134327086",
-	["math-union-shape"] = "rbxassetid://125633228072117",
-	["medal"] = "rbxassetid://77629794806774",
-	["megaphone"] = "rbxassetid://100616565190065",
-	["microphone"] = "rbxassetid://139538522148314",
-	["microphone-slash"] = "rbxassetid://103601475520943",
-	["microscope"] = "rbxassetid://82196704162955",
-	["minus"] = "rbxassetid://108872870188126",
-	["minus-shape"] = "rbxassetid://126969485042490",
-	["minus-shape-fill"] = "rbxassetid://85672016158837",
-	["molecule"] = "rbxassetid://83213930150159",
-	["moon"] = "rbxassetid://133378404835359",
-	["mug"] = "rbxassetid://133596134867753",
-	["music-note"] = "rbxassetid://118344544185512",
-	["nodes-down"] = "rbxassetid://78959155873218",
-	["nodes-left"] = "rbxassetid://128423983338128",
-	["nodes-right"] = "rbxassetid://118544021258370",
-	["nodes-up"] = "rbxassetid://92522278145067",
-	["nut-hex"] = "rbxassetid://81847321109216",
-	["object-align-bottom"] = "rbxassetid://103798951610656",
-	["object-align-center-horizontal"] = "rbxassetid://97416331490032",
-	["object-align-center-vertical"] = "rbxassetid://120211347778371",
-	["object-align-justify-horizontal"] = "rbxassetid://79979775646576",
-	["object-align-justify-vertical"] = "rbxassetid://110854565778147",
-	["object-align-left"] = "rbxassetid://105346144625665",
-	["object-align-right"] = "rbxassetid://103097923432348",
-	["object-align-top"] = "rbxassetid://98079578772618",
-	["objects-align-bottom"] = "rbxassetid://95388778271651",
-	["objects-align-center-horizontal"] = "rbxassetid://110438134614711",
-	["objects-align-center-vertical"] = "rbxassetid://79198463408501",
-	["objects-align-justify-horizontal"] = "rbxassetid://122875167898478",
-	["objects-align-justify-vertical"] = "rbxassetid://78441673968689",
-	["objects-align-left"] = "rbxassetid://120648874528302",
-	["objects-align-right"] = "rbxassetid://83569867209815",
-	["objects-align-top"] = "rbxassetid://138094321995396",
-	["octagon-xmark"] = "rbxassetid://139784898655656",
-	["office-badge"] = "rbxassetid://105708603646268",
-	["paintbrush"] = "rbxassetid://116170048634161",
-	["palette"] = "rbxassetid://91973234300212",
-	["paper-plane"] = "rbxassetid://84096293617435",
-	["paperclip"] = "rbxassetid://104675861538941",
-	["passport"] = "rbxassetid://112257954225409",
-	["pause"] = "rbxassetid://121534471795622",
-	["pause-fill"] = "rbxassetid://103348022852527",
-	["pencil"] = "rbxassetid://132145192304391",
-	["pencil-to-line"] = "rbxassetid://86977727845037",
-	["pencil-to-square"] = "rbxassetid://138949256779509",
-	["percent"] = "rbxassetid://72754559570110",
-	["person"] = "rbxassetid://135548958804125",
-	["person-fill"] = "rbxassetid://93649699513763",
-	["person-gear"] = "rbxassetid://105283855461666",
-	["person-magnifier"] = "rbxassetid://126714669722336",
-	["person-nut-hex"] = "rbxassetid://127185374454347",
-	["person-pencil"] = "rbxassetid://88660023708396",
-	["person-planet-earth"] = "rbxassetid://112713297610152",
-	["person-plus"] = "rbxassetid://126802984104475",
-	["person-speaker"] = "rbxassetid://118694133626529",
-	["person-worker"] = "rbxassetid://72283067948452",
-	["person-xmark"] = "rbxassetid://100514977902172",
-	["persons"] = "rbxassetid://70469668008783",
-	["persons-lock"] = "rbxassetid://125295333446575",
-	["picture"] = "rbxassetid://121179811894958",
-	["pill"] = "rbxassetid://95053376969510",
-	["pin"] = "rbxassetid://98714172077933",
-	["pin-fill"] = "rbxassetid://135455996455542",
-	["pin-slash"] = "rbxassetid://106760998399458",
-	["pin-slash-fill"] = "rbxassetid://135561989808725",
-	["pipeline"] = "rbxassetid://127156532534466",
-	["plane"] = "rbxassetid://111442137230748",
-	["plane-fill"] = "rbxassetid://106514623588033",
-	["planet-earth"] = "rbxassetid://109328327555253",
-	["play"] = "rbxassetid://87316717636842",
-	["play-fill"] = "rbxassetid://81944593209262",
-	["plug-connection"] = "rbxassetid://135837147660701",
-	["plug-wire"] = "rbxassetid://97698299546425",
-	["plus"] = "rbxassetid://80662775071567",
-	["plus-shape"] = "rbxassetid://76944214577840",
-	["plus-shape-fill"] = "rbxassetid://139105857222301",
-	["power"] = "rbxassetid://138353101694958",
-	["printer"] = "rbxassetid://131123146569579",
-	["pulse"] = "rbxassetid://77126153989476",
-	["puzzle"] = "rbxassetid://95674201006671",
-	["qr-code"] = "rbxassetid://130769619091887",
-	["quote-close"] = "rbxassetid://88565840976359",
-	["quote-open"] = "rbxassetid://70929167034922",
-	["receipt"] = "rbxassetid://131474240985462",
-	["rectangle-pulse"] = "rbxassetid://111711523683961",
-	["rectangles-4"] = "rbxassetid://120618780846189",
-	["rocket"] = "rbxassetid://72732501782164",
-	["round-brackets"] = "rbxassetid://101689273727463",
-	["route"] = "rbxassetid://123758427507398",
-	["sack"] = "rbxassetid://79102076460844",
-	["scales-balanced"] = "rbxassetid://84869600023351",
-	["scales-unbalanced"] = "rbxassetid://125351393561428",
-	["scissors"] = "rbxassetid://83891508648427",
-	["seal-check"] = "rbxassetid://114383699967547",
-	["seal-percent"] = "rbxassetid://81252577691087",
-	["server"] = "rbxassetid://103032027904546",
-	["shapes-3"] = "rbxassetid://126934895067024",
-	["shapes-4"] = "rbxassetid://94346755009249",
-	["shield"] = "rbxassetid://126492969629387",
-	["shield-check"] = "rbxassetid://130212494205207",
-	["shield-exclamation"] = "rbxassetid://106149755930805",
-	["shield-keyhole"] = "rbxassetid://132765890698199",
-	["shopping-bag"] = "rbxassetid://119045069462549",
-	["shopping-basket"] = "rbxassetid://75353938654634",
-	["shopping-cart"] = "rbxassetid://124870886755485",
-	["shuffle"] = "rbxassetid://73102173859910",
-	["signal"] = "rbxassetid://90913466131390",
-	["skull"] = "rbxassetid://83420758450923",
-	["sliders"] = "rbxassetid://122721161727239",
-	["sliders-vertical"] = "rbxassetid://76400438334805",
-	["smartphone"] = "rbxassetid://86886555582618",
-	["snail"] = "rbxassetid://115576237784392",
-	["snowflake"] = "rbxassetid://110909689744928",
-	["sparkles"] = "rbxassetid://128421724798018",
-	["sparkles-fill"] = "rbxassetid://78549168418570",
-	["speedometer"] = "rbxassetid://110143476875973",
-	["sphere"] = "rbxassetid://130283294594898",
-	["square"] = "rbxassetid://122997226258883",
-	["square-article"] = "rbxassetid://118698086520012",
-	["square-bars"] = "rbxassetid://134764451469323",
-	["square-bars-vertical"] = "rbxassetid://85407882752366",
-	["square-brackets"] = "rbxassetid://135215679548914",
-	["square-brackets-bars-vertical"] = "rbxassetid://131077560251497",
-	["square-brackets-letter-a"] = "rbxassetid://73723438286165",
-	["square-chart-bar"] = "rbxassetid://71015029807443",
-	["square-chart-column"] = "rbxassetid://108233991388760",
-	["square-check"] = "rbxassetid://129517577270214",
-	["square-dashed"] = "rbxassetid://92148931490321",
-	["square-dashed-circle"] = "rbxassetid://134346520018636",
-	["square-dashed-letter-a"] = "rbxassetid://131729372968637",
-	["square-dashed-letter-t"] = "rbxassetid://136241753535397",
-	["square-dashed-text"] = "rbxassetid://89082306894894",
-	["square-dot"] = "rbxassetid://76761544648980",
-	["square-exclamation"] = "rbxassetid://89733968105684",
-	["square-fill"] = "rbxassetid://114726013880233",
-	["square-hashtag"] = "rbxassetid://96174044824758",
-	["square-letter-p"] = "rbxassetid://80311910925439",
-	["square-letter-t"] = "rbxassetid://104779586576361",
-	["square-line-horizontal"] = "rbxassetid://103870626448212",
-	["square-line-vertical"] = "rbxassetid://138681242128568",
-	["square-list-ul"] = "rbxassetid://121934696651725",
-	["square-minus"] = "rbxassetid://137380824267207",
-	["square-plus"] = "rbxassetid://73319794514420",
-	["square-xmark"] = "rbxassetid://119167539843240",
-	["star"] = "rbxassetid://82714530610376",
-	["star-fill"] = "rbxassetid://112908772848069",
-	["stethoscope"] = "rbxassetid://119209664784890",
-	["sticker"] = "rbxassetid://74654761442741",
-	["stop"] = "rbxassetid://74753225999323",
-	["stop-fill"] = "rbxassetid://129724408640217",
-	["stopwatch"] = "rbxassetid://74070793986442",
-	["strikethrough"] = "rbxassetid://122272460020631",
-	["suitcase"] = "rbxassetid://85738170275917",
-	["sun"] = "rbxassetid://73708402464015",
-	["superscript"] = "rbxassetid://83205898623495",
-	["t-shirt"] = "rbxassetid://126587578410655",
-	["tachometer"] = "rbxassetid://75978178969685",
-	["tag"] = "rbxassetid://73313248079703",
-	["tag-dollar"] = "rbxassetid://123305928004312",
-	["tag-ruble"] = "rbxassetid://138522126576318",
-	["tags"] = "rbxassetid://115994346321994",
-	["target"] = "rbxassetid://83246673249608",
-	["target-dart"] = "rbxassetid://77322579126050",
-	["terminal"] = "rbxassetid://82516228510416",
-	["terminal-line"] = "rbxassetid://109543607242216",
-	["text"] = "rbxassetid://100102832947962",
-	["text-align-center"] = "rbxassetid://100721831476135",
-	["text-align-justify"] = "rbxassetid://85225101337173",
-	["text-align-left"] = "rbxassetid://110886200281818",
-	["text-align-right"] = "rbxassetid://84289940846927",
-	["text-indent"] = "rbxassetid://88989450737244",
-	["text-outdent"] = "rbxassetid://105177909864797",
-	["thumbs-down"] = "rbxassetid://81293559344920",
-	["thumbs-down-fill"] = "rbxassetid://136111475904802",
-	["thumbs-up"] = "rbxassetid://95381074098952",
-	["thumbs-up-2"] = "rbxassetid://88066568102248",
-	["thumbs-up-fill"] = "rbxassetid://76753866435892",
-	["thunderbolt"] = "rbxassetid://72414364939300",
-	["thunderbolt-fill"] = "rbxassetid://108407820702676",
-	["ticket"] = "rbxassetid://133508781907204",
-	["timeline"] = "rbxassetid://72053264904498",
-	["timestamps"] = "rbxassetid://87694590140038",
-	["toggle-off"] = "rbxassetid://72859661230887",
-	["toggle-on"] = "rbxassetid://86779165441121",
-	["traffic-light"] = "rbxassetid://114478626716752",
-	["trapezoid-left-line-horizontal"] = "rbxassetid://115336243014706",
-	["trapezoid-up-line-vertical"] = "rbxassetid://77563309671286",
-	["trash-bin"] = "rbxassetid://103767256411949",
-	["tray"] = "rbxassetid://126858057212120",
-	["triangle-down"] = "rbxassetid://82238326686665",
-	["triangle-down-fill"] = "rbxassetid://73294647242721",
-	["triangle-exclamation"] = "rbxassetid://75884953438553",
-	["triangle-exclamation-fill"] = "rbxassetid://126758384179031",
-	["triangle-left"] = "rbxassetid://80006508286559",
-	["triangle-left-fill"] = "rbxassetid://118587504462189",
-	["triangle-right"] = "rbxassetid://105983229462016",
-	["triangle-right-fill"] = "rbxassetid://105532309942682",
-	["triangle-thunderbolt"] = "rbxassetid://116364993642883",
-	["triangle-up"] = "rbxassetid://75462475600328",
-	["triangle-up-fill"] = "rbxassetid://98393490832027",
-	["trolley"] = "rbxassetid://124134039113349",
-	["tv"] = "rbxassetid://89593768065837",
-	["tv-retro"] = "rbxassetid://121138629350895",
-	["umbrella"] = "rbxassetid://136855445429009",
-	["underline"] = "rbxassetid://111037385861002",
-	["universal-access"] = "rbxassetid://129578549178419",
-	["vault"] = "rbxassetid://93600999120652",
-	["vector-circle"] = "rbxassetid://121395907084692",
-	["vector-square"] = "rbxassetid://88721655919497",
-	["video"] = "rbxassetid://94409367676512",
-	["volume"] = "rbxassetid://77672150892068",
-	["volume-fill"] = "rbxassetid://78065739687252",
-	["volume-low"] = "rbxassetid://83196721920754",
-	["volume-low-fill"] = "rbxassetid://103130247429745",
-	["volume-off"] = "rbxassetid://128835255389731",
-	["volume-off-fill"] = "rbxassetid://95683800715478",
-	["volume-slash"] = "rbxassetid://113444931410054",
-	["volume-slash-fill"] = "rbxassetid://80072301093738",
-	["volume-xmark"] = "rbxassetid://131964141919250",
-	["volume-xmark-fill"] = "rbxassetid://110913274367125",
-	["weight-hanging"] = "rbxassetid://133001442287715",
-	["wrench"] = "rbxassetid://124105097858234",
-	["xmark"] = "rbxassetid://116696831480300",
-	["xmark-shape"] = "rbxassetid://113332623964226",
-	["xmark-shape-fill"] = "rbxassetid://102835594333260",
-}
+-- Icons: Library.Lucide knows 530 Lucide NAMES (names only - no images).
+-- To DRAW them, load an image source BEFORE CreateWindow (any of these, or all):
+--   Library:LoadIcons(folder)                         -- a Folder of ImageLabels / Decals named after the icons
+--   Library:SetWindUI(WindUI)                         -- uses WindUI's Lucide icons
+--   Library:SetIconAssets({ house = "rbxassetid://123", settings = "rbxassetid://456" })
+--   (it also accepts your IconIDs module:  Library:SetIconAssets(IconIDs) - it returns how many REAL ids were loaded)
+-- Not drawing? run  Library:DebugIcons("house")  and read the output.
+-- Then Icon = "house" works in CreateWindow, Window:Tab, Library:KeySystem and Library:Icon().
+-- Names are forgiving: "house", "House", "lucide-house" and the old name "home" all match.
+-- Library.Lucide.Has("house") / .Search("arrow", 5) / .Count() help you find names.
 
--- Lucide-style names -> Tree Hub icons.
--- The library asks for names like "settings", "x", "eye-off", "menu"...
--- but this icon set calls them "gear", "xmark", "eye-slash", "bars"...
--- so each Lucide name below points to the matching icon id.
-local IconAliases = {
-	["settings"] = "gear",
-	["cog"] = "gear",
-	["x"] = "xmark",
-	["close"] = "xmark",
-	["eye-off"] = "eye-slash",
-	["minimize-2"] = "chevrons-collapse-up-right",
-	["maximize-2"] = "chevrons-expand-up-right",
-	["menu"] = "bars",
-	["info"] = "circle-info",
-	["triangle-alert"] = "triangle-exclamation",
-	["alert-triangle"] = "triangle-exclamation",
-	["circle-alert"] = "circle-exclamation",
-	["alert-circle"] = "circle-exclamation",
-	["x-circle"] = "circle-xmark",
-	["circle-x"] = "circle-xmark",
-	["check-circle"] = "circle-check",
-	["help-circle"] = "circle-question",
-	["circle-question-mark"] = "circle-question",
-	["search"] = "magnifier",
-	["user"] = "person",
-	["users"] = "persons",
-	["user-plus"] = "person-plus",
-	["trash"] = "trash-bin",
-	["trash-2"] = "trash-bin",
-	["edit"] = "pencil-to-square",
-	["square-pen"] = "pencil-to-square",
-	["save"] = "floppy-disk",
-	["download"] = "arrow-down-to-line",
-	["upload"] = "arrow-up-from-line",
-	["zap"] = "thunderbolt",
-	["crosshair"] = "target",
-	["unlock"] = "lock-open",
-	["mail"] = "envelope",
-	["refresh-cw"] = "arrows-rotate-right",
-	["refresh-ccw"] = "arrows-rotate-left",
-	["rotate-cw"] = "arrow-rotate-right",
-	["rotate-ccw"] = "arrow-rotate-left",
-	["bot"] = "face-robot",
-	["crown"] = "crown-diamond",
-	["volume-2"] = "volume",
-	["volume-x"] = "volume-xmark",
-	["bar-chart"] = "chart-bar",
-	["line-chart"] = "chart-line",
-	["pie-chart"] = "chart-pie",
-	["more-horizontal"] = "ellipsis",
-	["more-vertical"] = "ellipsis-vertical",
-	["layout-dashboard"] = "layout-cells",
-	["sliders-horizontal"] = "sliders",
-	["map"] = "geo",
-	["pointer"] = "hand-point-up",
-	["lightbulb"] = "bulb",
-	["gauge"] = "speedometer",
-	["shield-alert"] = "shield-exclamation",
-	["monitor"] = "display",
-	["smile"] = "face-smile",
-	["frown"] = "face-sad",
-	["lock-keyhole"] = "folder-keyhole",
-	["file-text"] = "file-text",
-	["globe-2"] = "planet-earth",
-}
-
-do
-	local all = {}
-	for k, v in pairs(IconIDs) do all[k] = v end
-	for alias, real in pairs(IconAliases) do
-		if all[alias] == nil and IconIDs[real] then
-			all[alias] = IconIDs[real]
-		end
-	end
-	Library:SetIconAssets(all)
+-- Key system (separate from the window). Yields until the key is correct.
+local passed = Library:KeySystem({
+	Title = "My Hub | Key System",   -- title of the key page
+	Key = "12345",                   -- a string, a number, or a table of valid keys
+	Link = "https://example.com/get-key", -- the "Copy Link" button copies this
+	-- Color = "Matte Black",        -- optional: one of the 20 color names
+})
+if not passed then
+	return Library
 end
 
+-- Call Library:LoadIcons(folder) BEFORE CreateWindow so Icon = "..." can find the icons.
+
+local Window = Library:CreateWindow({
+	Title = "My Hub",                  -- script name
+	Description = "Simple and clean",  -- text under the title
+	Color = "Matte Black",             -- color NAME (see Library:GetColors())
+	Size = UDim2.new(0, 550, 0, 356),  -- window size
+	Icon = "house",                    -- icon at the left of the title
+})
+
+-- Tags: framed words next to the title.  Text, Color (name), Size, Rounded
+Window:Tag({ Text = "v1.0", Color = "Blue" })
+Window:Tag({ Text = "PRO", Color = "Purple", Rounded = false, Size = UDim2.fromOffset(40, 18) })
+
+-- Open button: Name, Size, Image (icon name / rbxassetid), Color (name), Position, Draggable
+Window:OpenButton({
+	Name = "Hub",
+	Size = UDim2.fromOffset(56, 56),
+	Image = "house",
+	Color = "Matte Black",
+	Position = UDim2.new(0, 20, 0.5, -28),
+	Draggable = true,
+})
+
+local Main = Window:Tab({ Title = "Main", Icon = "house" })
+local Settings = Window:Tab({ Title = "Settings", Icon = "settings" })
+
+Main:Label("Welcome! This is a label.")
+
+Main:Note({
+	Title = "Dark note",
+	Text = "This is a dark note for general information.",
+	Style = "Dark",
+})
+
+Main:Note({
+	Title = "Blue note",
+	Text = "This is a blue note for important information.",
+	Style = "Blue",
+})
+
+Main:Button({
+	Title = "Test Button",
+	Desc = "Shows a notification when clicked",
+	Callback = function()
+		Library:Notify({
+			Title = "Success",
+			Content = "The button was clicked successfully.",
+			Type = "success", -- info | success | warning | error
+			Duration = 4,
+		})
+	end,
+})
+
+Main:Toggle({
+	Title = "Enable Feature",
+	Desc = "Turn this feature on or off",
+	Default = false,
+	Callback = function(state)
+		print("Toggle:", state)
+	end,
+})
+
+Main:Input({
+	Title = "Player Name",
+	Desc = "Type a name and press Enter",
+	Placeholder = "Name...",
+	Callback = function(text)
+		Library:Notify({ Title = "Input", Content = "You typed: " .. text, Type = "info", Duration = 3 })
+	end,
+})
+
+Settings:Section("Combat")
+
+Settings:Dropdown({
+	Title = "Target",
+	Desc = "Pick one option",
+	Options = { "Head", "Torso", "Legs", "Arms" },
+	Default = "Head",
+	Callback = function(value) print("Dropdown:", value) end,
+})
+
+Settings:Dropdown({
+	Title = "Features",
+	Desc = "Pick several options",
+	Options = { "Speed", "Jump", "Fly", "Noclip", "ESP" },
+	Multi = true,
+	Default = { "Speed" },
+	Callback = function(list) print("Multi:", table.concat(list, ", ")) end,
+})
+
+Settings:Slider({
+	Title = "Walk Speed",
+	Desc = "Drag to change the value",
+	Min = 16,
+	Max = 100,
+	Default = 16,
+	Step = 1,
+	Suffix = "",
+	Callback = function(value)
+		print("Slider:", value)
+	end,
+})
+
+Settings:Section("Appearance")
+
+Settings:ColorPicker({
+	Title = "ESP Color",
+	Desc = "Click to open the picker",
+	Default = Color3.fromRGB(255, 80, 80),
+	Callback = function(color)
+		print("Color:", color)
+	end,
+})
+
+Settings:Toggle({
+	Title = "Another Option",
+	Callback = function(state) print("Option:", state) end,
+})
+
+-- Notification settings (size / position / icon / transparency) at the bottom of Settings.
+-- Call it after the other elements of the tab so the section sits under all of them.
+Window:NotificationSettings(Settings)
+
+-- Interface tab (created last, so it appears under Settings):
+-- window transparency / color / size / font size / font + open button settings.
+local Interface = Window:InterfaceTab({ Title = "Interface", Icon = "palette" })
+
 return Library
+ 
