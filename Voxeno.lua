@@ -1661,10 +1661,8 @@ for _, fam in ipairs(FontFamilies) do
 		table.insert(FontNames, fam[1])
 	end
 end
-Library.FontNames = FontNames
 
 local UIStyle = { Font = "Gotham", FontScale = 1 }
-Library.UIStyle = UIStyle
 
 -- applies the current font (and font size) to one text object.
 -- The original size / weight are remembered in attributes, so changes are never cumulative.
@@ -1692,14 +1690,10 @@ local function styleText(obj, withSize)
 end
 
 --------------------------------------------------------------------
--- Notification settings (all of them are used by Library:Notify)
---   Library:SetNotifySize(percent)          70-150
---   Library:SetNotifyPosition("Top Left" ...)
---   Library:SetNotifyIcon("bell" / rbxassetid / nil)
---   Library:SetNotifyTransparency(percent)  0-90
+-- Notification settings (internal)
+-- Library:Notify reads them; they are changed from the built-in Settings tab.
 --------------------------------------------------------------------
 local NotifySettings = { Size = 100, Position = "Bottom Right", Icon = nil, Transparency = 0 }
-Library.NotifySettings = NotifySettings
 
 local HA, VA = Enum.HorizontalAlignment, Enum.VerticalAlignment
 -- { anchor X, anchor Y, list horizontal alignment, list vertical alignment }
@@ -1713,7 +1707,7 @@ local NotifyPositions = {
 	["Bottom Center"] = { 0.5, 1, HA.Center, VA.Bottom },
 	["Bottom Right"] = { 1, 1, HA.Right, VA.Bottom },
 }
-Library.NotifyPositionNames = {
+local NotifyPositionNames = {
 	"Top Left", "Top Center", "Top Right", "Middle Left", "Middle Right",
 	"Bottom Left", "Bottom Center", "Bottom Right",
 }
@@ -1757,18 +1751,18 @@ end
 
 local liveCards = {} -- cards currently on screen (so transparency can change live)
 
-function Library:SetNotifySize(pct)
+local function setNotifySize(pct)
 	NotifySettings.Size = math.clamp(tonumber(pct) or 100, 50, 200)
 end
 
-function Library:SetNotifyPosition(name)
+local function setNotifyPosition(name)
 	if NotifyPositions[name] then
 		NotifySettings.Position = name
 		applyNotifyPosition()
 	end
 end
 
-function Library:SetNotifyIcon(icon)
+local function setNotifyIcon(icon)
 	if icon == nil or tostring(icon) == "" then
 		NotifySettings.Icon = nil
 	else
@@ -1776,8 +1770,8 @@ function Library:SetNotifyIcon(icon)
 	end
 end
 
-function Library:SetNotifyTransparency(pct)
-	pct = math.clamp(tonumber(pct) or 0, 0, 90)
+local function setNotifyTransparency(pct)
+	pct = math.clamp(tonumber(pct) or 0, 0, 100)
 	NotifySettings.Transparency = pct
 	for card in pairs(liveCards) do
 		if card.Parent then card.GroupTransparency = pct / 100 end
@@ -2219,7 +2213,6 @@ function Library:CreateWindow(opts)
 	corner(main, 12)
 	stroke(main, Theme.Stroke)
 	local mainScale = new("UIScale", { Scale = 1 }, main)
-	local uiAlpha = 0 -- window transparency (Window:SetTransparency)
 
 	-- Topbar
 	local top = new("Frame", {
@@ -2412,16 +2405,26 @@ function Library:CreateWindow(opts)
 		Size = UDim2.new(0, 140, 1, 0),
 	}, body)
 
+	local FOOTER = 48 -- bottom area of the sidebar: the Settings tab is pinned there
+
 	local tabList = new("ScrollingFrame", {
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Position = UDim2.fromOffset(8, 8),
-		Size = UDim2.new(1, -16, 1, -16),
+		Size = UDim2.new(1, -16, 1, -(16 + FOOTER)),
 		ScrollBarThickness = 0,
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		CanvasSize = UDim2.new(),
 	}, sidebar)
 	new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, tabList)
+
+	-- line above the pinned Settings tab
+	new("Frame", {
+		BackgroundColor3 = Theme.Stroke,
+		BorderSizePixel = 0,
+		Position = UDim2.new(0, 14, 1, -(FOOTER - 2)),
+		Size = UDim2.new(1, -28, 0, 1),
+	}, sidebar)
 
 	-- optional: logo at the bottom of the sidebar -> Window:SetLogo("rbxassetid://123")
 	local logoObj
@@ -2431,13 +2434,13 @@ function Library:CreateWindow(opts)
 			logoObj = new("ImageLabel", {
 				BackgroundTransparency = 1,
 				AnchorPoint = Vector2.new(0, 1),
-				Position = UDim2.new(0, 14, 1, -10),
+				Position = UDim2.new(0, 14, 1, -(FOOTER + 8)),
 				Size = UDim2.fromOffset(28, 28),
 				Image = image,
 			}, sidebar)
 			corner(logoObj, 6)
 		end
-		tabList.Size = UDim2.new(1, -16, 1, image and -52 or -16)
+		tabList.Size = UDim2.new(1, -16, 1, -(16 + FOOTER + (image and 36 or 0)))
 	end
 
 	new("Frame", {
@@ -2560,14 +2563,81 @@ function Library:CreateWindow(opts)
 	local visible = true
 	local animToken = 0
 
-	-- page transition: the new page slides up + fades in
+	-- every tab (the pinned Settings tab is always last)
+	local function allTabs()
+		local list = table.clone(Window.Tabs)
+		if Window._pinned then table.insert(list, Window._pinned) end
+		return list
+	end
+
+	-- loading bar at the top of the pages (sweeps across when a tab opens)
+	local loadBar = new("Frame", {
+		BackgroundColor3 = accent,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.new(0, 0, 0, 2),
+		ZIndex = 10,
+	}, pages)
+	corner(loadBar, 1)
+	local loadToken = 0
+	local function playLoadBar()
+		loadToken += 1
+		local my = loadToken
+		loadBar.Size = UDim2.new(0, 0, 0, 2)
+		loadBar.BackgroundTransparency = 0
+		tween(loadBar, 0.6, { Size = UDim2.new(1, 0, 0, 2) }, Enum.EasingStyle.Quint)
+		task.delay(0.6, function()
+			if my == loadToken then tween(loadBar, 0.3, { BackgroundTransparency = 1 }) end
+		end)
+	end
+
+	-- "loading" effect: every button / element of the tab shows a shimmering
+	-- placeholder that fades away one after another
+	local function playLoad(tab)
+		local scroll = tab._scroll
+		if not scroll then return end
+		local n = 0
+		for _, e in ipairs(scroll:GetChildren()) do
+			if e:IsA("GuiObject") and e.BackgroundTransparency < 1 then
+				n += 1
+				local cover = new("Frame", {
+					Name = "SUI_Load",
+					BackgroundColor3 = Theme.SurfaceHover,
+					BorderSizePixel = 0,
+					Size = UDim2.fromScale(1, 1),
+					ZIndex = 20,
+				}, e)
+				local cr = e:FindFirstChildOfClass("UICorner")
+				corner(cover, cr and cr.CornerRadius.Offset or 8)
+				local grad = new("UIGradient", {
+					Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, Theme.SurfaceHover),
+						ColorSequenceKeypoint.new(0.5, Theme.Stroke),
+						ColorSequenceKeypoint.new(1, Theme.SurfaceHover),
+					}),
+					Offset = Vector2.new(-1, 0),
+				}, cover)
+				tween(grad, 0.6, { Offset = Vector2.new(1, 0) }, Enum.EasingStyle.Sine)
+				task.delay(0.3 + math.min(n, 9) * 0.07, function()
+					if cover.Parent then
+						tween(cover, 0.32, { BackgroundTransparency = 1 })
+						task.delay(0.34, function() cover:Destroy() end)
+					end
+				end)
+			end
+		end
+	end
+
+	-- page transition: the new page slides up + fades in, then its buttons "load"
 	local function showPage(tab, animate)
 		local wrap = tab._page
 		wrap.Visible = true
 		if animate then
 			wrap.GroupTransparency = 1
 			wrap.Position = UDim2.fromOffset(0, 14)
-			tween(wrap, 0.22, { GroupTransparency = 0, Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quint)
+			tween(wrap, 0.38, { GroupTransparency = 0, Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quint)
+			playLoadBar()
+			playLoad(tab)
 		else
 			wrap.GroupTransparency = 0
 			wrap.Position = UDim2.fromOffset(0, 0)
@@ -2576,12 +2646,12 @@ function Library:CreateWindow(opts)
 
 	-- tab buttons slide in / out of the sidebar, one after another
 	local function animateTabs(showing, token)
-		for i, t in ipairs(Window.Tabs) do
+		for i, t in ipairs(allTabs()) do
 			local b = t._btn
 			if showing then b.Position = UDim2.new(-1, 0, 0, 0) end
-			task.delay((i - 1) * 0.04, function()
+			task.delay((i - 1) * 0.07, function()
 				if token ~= animToken then return end
-				tween(b, 0.22, {
+				tween(b, 0.4, {
 					Position = showing and UDim2.new(0, 0, 0, 0) or UDim2.new(-1, 0, 0, 0),
 				}, Enum.EasingStyle.Quint)
 			end)
@@ -2609,7 +2679,7 @@ function Library:CreateWindow(opts)
 		main.Visible = true
 		main.GroupTransparency = 1
 		mainScale.Scale = 0.9
-		tween(main, 0.22, { GroupTransparency = uiAlpha })
+		tween(main, 0.22, { GroupTransparency = 0 })
 		tween(mainScale, 0.28, { Scale = 1 }, Enum.EasingStyle.Back)
 		animateTabs(true, token)
 		if Window.Current then showPage(Window.Current, true) end
@@ -2736,8 +2806,12 @@ function Library:CreateWindow(opts)
 			t._btn.BackgroundTransparency = bgT
 			t._bar.Size = barSize
 		else
-			tween(t._btn, 0.15, { BackgroundTransparency = bgT })
-			tween(t._bar, 0.18, { Size = barSize })
+			tween(t._btn, 0.25, { BackgroundTransparency = bgT })
+			tween(t._bar, 0.3, { Size = barSize }, Enum.EasingStyle.Back)
+			if t._pinned then
+				-- the gear turns when the Settings tab is opened / closed
+				tween(t._ic, 0.6, { Rotation = active and 180 or 0 }, Enum.EasingStyle.Quint)
+			end
 		end
 	end
 
@@ -2746,7 +2820,7 @@ function Library:CreateWindow(opts)
 		local previous = Window.Current
 		Window.Current = tab
 
-		for _, t in ipairs(Window.Tabs) do
+		for _, t in ipairs(allTabs()) do
 			setActive(t, t == tab, instant)
 		end
 
@@ -2758,8 +2832,8 @@ function Library:CreateWindow(opts)
 		-- exit animation for the old page, then enter animation for the new one
 		if previous then
 			local old = previous._page
-			tween(old, 0.12, { GroupTransparency = 1, Position = UDim2.fromOffset(0, -10) })
-			task.delay(0.13, function()
+			tween(old, 0.2, { GroupTransparency = 1, Position = UDim2.fromOffset(0, -10) })
+			task.delay(0.21, function()
 				if Window.Current ~= previous then old.Visible = false end
 			end)
 		end
@@ -2768,9 +2842,11 @@ function Library:CreateWindow(opts)
 		wrap.Visible = true
 		wrap.GroupTransparency = 1
 		wrap.Position = UDim2.fromOffset(0, 14)
-		task.delay(previous and 0.08 or 0, function()
+		task.delay(previous and 0.14 or 0, function()
 			if Window.Current == tab then
-				tween(wrap, 0.22, { GroupTransparency = 0, Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quint)
+				tween(wrap, 0.38, { GroupTransparency = 0, Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quint)
+				playLoadBar()
+				playLoad(tab)
 			end
 		end)
 	end
@@ -2780,12 +2856,15 @@ function Library:CreateWindow(opts)
 		local Tab = {}
 
 		-- slot clips the button so it can slide in from the left
+		-- _Pinned (internal): the built-in Settings tab lives in the sidebar footer, under every tab
+		local pinned = topts._Pinned == true
 		local slot = new("Frame", {
 			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 0, 34),
+			Size = pinned and UDim2.new(1, -16, 0, 34) or UDim2.new(1, 0, 0, 34),
+			Position = pinned and UDim2.new(0, 8, 1, -42) or UDim2.new(),
 			ClipsDescendants = true,
 			LayoutOrder = #Window.Tabs + 1,
-		}, tabList)
+		}, pinned and sidebar or tabList)
 
 		local btn = new("TextButton", {
 			BackgroundColor3 = Theme.Surface,
@@ -2807,7 +2886,8 @@ function Library:CreateWindow(opts)
 		corner(bar, 2)
 
 		local ic = createIcon(btn, topts.Icon, 18, Theme.Text)
-		ic.Position = UDim2.new(0, 10, 0.5, -9)
+		ic.AnchorPoint = Vector2.new(0.5, 0.5) -- so the icon can turn around its center
+		ic.Position = UDim2.new(0, 19, 0.5, 0)
 
 		new("TextLabel", {
 			BackgroundTransparency = 1,
@@ -2820,6 +2900,21 @@ function Library:CreateWindow(opts)
 			TextColor3 = Theme.Text,
 			TextTruncate = Enum.TextTruncate.AtEnd,
 		}, btn)
+
+		-- hover / press effects: the icon nudges, the button dips when pressed
+		local pressScale = new("UIScale", { Scale = 1 }, btn)
+		btn.MouseEnter:Connect(function()
+			if Window.Current ~= Tab then tween(btn, 0.2, { BackgroundTransparency = 0.6 }) end
+			tween(ic, 0.25, { Position = UDim2.new(0, 22, 0.5, 0) }, Enum.EasingStyle.Back)
+			if pinned and Window.Current ~= Tab then tween(ic, 0.5, { Rotation = 90 }, Enum.EasingStyle.Quint) end
+		end)
+		btn.MouseLeave:Connect(function()
+			if Window.Current ~= Tab then tween(btn, 0.2, { BackgroundTransparency = 1 }) end
+			tween(ic, 0.25, { Position = UDim2.new(0, 19, 0.5, 0) })
+			if pinned and Window.Current ~= Tab then tween(ic, 0.5, { Rotation = 0 }, Enum.EasingStyle.Quint) end
+		end)
+		btn.MouseButton1Down:Connect(function() tween(pressScale, 0.08, { Scale = 0.95 }) end)
+		btn.MouseButton1Up:Connect(function() tween(pressScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back) end)
 
 		-- wrapper (CanvasGroup) is what fades/slides; `page` is the scrolling content
 		local wrap = new("CanvasGroup", {
@@ -2843,10 +2938,17 @@ function Library:CreateWindow(opts)
 		Tab._btn = btn
 		Tab._bar = bar
 		Tab._page = wrap
-		table.insert(Window.Tabs, Tab)
+		Tab._scroll = page
+		Tab._ic = ic
+		Tab._pinned = pinned
+		if pinned then
+			Window._pinned = Tab
+		else
+			table.insert(Window.Tabs, Tab)
+		end
 
 		btn.Activated:Connect(function() selectTab(Tab) end)
-		if #Window.Tabs == 1 then selectTab(Tab, true) end
+		if not pinned and #Window.Tabs == 1 then selectTab(Tab, true) end
 
 		-- Shared card for Button / Toggle
 		local function makeCard(o)
@@ -3850,20 +3952,14 @@ function Library:CreateWindow(opts)
 	end
 
 	--------------------------------------------------------------
-	-- Interface settings (live)
-	-- Every function below changes the real window / open button right away.
-	-- The "Interface" tab (Window:InterfaceTab) is just a UI on top of them.
-	--   Window:SetTransparency(0-80)      Window:SetColor(Color3 / color name)
-	--   Window:SetSize(70-140)            Window:SetFontSize(80-125)
-	--   Window:SetFont("Gotham" ...)
-	--   Window:SetButtonSize(px)          Window:SetButtonColor(Color3)
-	--   Window:SetButtonName(text)        Window:SetButtonIcon(icon)
-	--   Window:SetButtonTransparency(0-90)
-	--   Window:SetButtonPosition("Left" ...)
+	-- Built-in Settings tab (default system)
+	-- Created automatically with every window. It is pinned to the bottom of
+	-- the sidebar, so it always stays under all the tabs you add.
+	-- It holds the window settings, the open button settings and the
+	-- notification settings. Everything here changes the real UI live.
 	--------------------------------------------------------------
 	local baseSize = fullSize
 	local ui = { Transparency = 0, SizePct = 100, FontPct = 100, Font = "Gotham" }
-	Window.Settings = ui
 
 	-- keep text styled (font + size) for everything added to the window later
 	table.insert(State.Conns, main.DescendantAdded:Connect(function(d) styleText(d) end))
@@ -3913,8 +4009,7 @@ function Library:CreateWindow(opts)
 	end
 
 	-- window color (background, cards, borders; the text turns dark on light colors)
-	function Window:SetColor(c)
-		if type(c) == "string" then c = (lookupColor(c)) end
+	local function setColor(c)
 		if typeof(c) ~= "Color3" then return end
 		local old = {
 			Background = Theme.Background, Surface = Theme.Surface, SurfaceHover = Theme.SurfaceHover,
@@ -3933,16 +4028,16 @@ function Library:CreateWindow(opts)
 		ui.Color = c
 	end
 
-	-- window transparency (0 = solid, 80 = almost see-through)
-	function Window:SetTransparency(pct)
-		pct = math.clamp(tonumber(pct) or 0, 0, 80)
+	-- window transparency: only the window background fades,
+	-- the tabs, buttons and texts stay fully visible
+	local function setTransparency(pct)
+		pct = math.clamp(tonumber(pct) or 0, 0, 100)
 		ui.Transparency = pct
-		uiAlpha = pct / 100
-		if visible then main.GroupTransparency = uiAlpha end
+		main.BackgroundTransparency = pct / 100
 	end
 
 	-- window size in percent of the size it was created with
-	function Window:SetSize(pct)
+	local function setSize(pct)
 		pct = math.clamp(tonumber(pct) or 100, 70, 140)
 		ui.SizePct = pct
 		local k = pct / 100
@@ -3962,15 +4057,15 @@ function Library:CreateWindow(opts)
 	end
 
 	-- font size of the whole window in percent
-	function Window:SetFontSize(pct)
+	local function setFontSize(pct)
 		pct = math.clamp(tonumber(pct) or 100, 80, 125)
 		ui.FontPct = pct
 		UIStyle.FontScale = pct / 100
 		for _, d in ipairs(main:GetDescendants()) do styleText(d) end
 	end
 
-	-- font family of the whole window (see Library.FontNames)
-	function Window:SetFont(name)
+	-- font family of the whole window
+	local function setFont(name)
 		if not FontMap[name] then return end
 		ui.Font = name
 		UIStyle.Font = name
@@ -3978,31 +4073,30 @@ function Library:CreateWindow(opts)
 	end
 
 	-- open button
-	function Window:SetButtonSize(px)
+	local function setButtonSize(px)
 		px = math.clamp(tonumber(px) or 56, 28, 120)
 		openBtn.Size = UDim2.fromOffset(px, px)
 		refreshOpenButton()
 	end
 
-	function Window:SetButtonColor(c)
-		if type(c) == "string" then c = (lookupColor(c)) end
+	local function setButtonColor(c)
 		if typeof(c) == "Color3" then openBtn.BackgroundColor3 = c end
 	end
 
-	function Window:SetButtonName(text)
+	local function setButtonName(text)
 		text = text ~= nil and tostring(text) or ""
 		openCfg.Name = text ~= "" and text or nil
 		refreshOpenButton()
 	end
 
-	function Window:SetButtonIcon(icon)
+	local function setButtonIcon(icon)
 		icon = icon ~= nil and tostring(icon) or ""
 		openCfg.Image = icon ~= "" and icon or nil
 		refreshOpenButton()
 	end
 
-	function Window:SetButtonTransparency(pct)
-		pct = math.clamp(tonumber(pct) or 0, 0, 90)
+	local function setButtonTransparency(pct)
+		pct = math.clamp(tonumber(pct) or 0, 0, 100)
 		openBtn.BackgroundTransparency = pct / 100
 		openStroke.Transparency = pct / 100
 	end
@@ -4015,11 +4109,11 @@ function Library:CreateWindow(opts)
 		["Bottom Left"] = { 0, 1 }, ["Bottom Right"] = { 1, 1 },
 		["Center"] = { 0.5, 0.5 },
 	}
-	Window.ButtonPositionNames = {
+	local ButtonPositionNames = {
 		"Left", "Right", "Top", "Bottom", "Top Left", "Top Right", "Bottom Left", "Bottom Right", "Center",
 	}
 
-	function Window:SetButtonPosition(name)
+	local function setButtonPosition(name)
 		local p = ButtonPositions[name]
 		if not p then return end
 		local ax, ay = p[1], p[2]
@@ -4030,43 +4124,38 @@ function Library:CreateWindow(opts)
 		)
 	end
 
-	--------------------------------------------------------------
-	-- Window:InterfaceTab({ Title, Icon })
-	-- Builds the "Interface" tab: window + open button settings.
-	-- Call it after your other tabs so it appears under them.
-	--------------------------------------------------------------
-	function Window:InterfaceTab(topts)
-		topts = topts or {}
-		local Tab = Window:Tab({ Title = topts.Title or "Interface", Icon = topts.Icon or "palette" })
+	-- the tab itself
+	do
+		local Tab = Window:Tab({ Title = "Settings", Icon = "settings", _Pinned = true })
 
 		Tab:Section("Window")
 
 		Tab:Slider({
 			Title = "Window Transparency",
-			Desc = "Fade the whole window",
-			Min = 0, Max = 80, Default = ui.Transparency, Step = 1, Suffix = "%",
-			Callback = function(v) Window:SetTransparency(v) end,
+			Desc = "Only the background fades, the tabs stay visible",
+			Min = 0, Max = 100, Default = ui.Transparency, Step = 1, Suffix = "%",
+			Callback = setTransparency,
 		})
 
 		Tab:ColorPicker({
 			Title = "Window Color",
 			Desc = "Background, cards and borders",
 			Default = Theme.Background,
-			Callback = function(c) Window:SetColor(c) end,
+			Callback = setColor,
 		})
 
 		Tab:Slider({
 			Title = "Window Size",
 			Desc = "Scale the window",
 			Min = 70, Max = 140, Default = ui.SizePct, Step = 5, Suffix = "%",
-			Callback = function(v) Window:SetSize(v) end,
+			Callback = setSize,
 		})
 
 		Tab:Slider({
 			Title = "Font Size",
 			Desc = "Text size of the whole window",
 			Min = 80, Max = 125, Default = ui.FontPct, Step = 5, Suffix = "%",
-			Callback = function(v) Window:SetFontSize(v) end,
+			Callback = setFontSize,
 		})
 
 		Tab:Dropdown({
@@ -4074,7 +4163,7 @@ function Library:CreateWindow(opts)
 			Desc = "Font of the whole window",
 			Options = FontNames,
 			Default = ui.Font,
-			Callback = function(v) Window:SetFont(v) end,
+			Callback = setFont,
 		})
 
 		Tab:Section("Open Button")
@@ -4082,13 +4171,13 @@ function Library:CreateWindow(opts)
 		Tab:Slider({
 			Title = "Button Size",
 			Min = 28, Max = 120, Default = math.max(28, openBtn.Size.Y.Offset), Step = 2, Suffix = " px",
-			Callback = function(v) Window:SetButtonSize(v) end,
+			Callback = setButtonSize,
 		})
 
 		Tab:ColorPicker({
 			Title = "Button Color",
 			Default = openBtn.BackgroundColor3,
-			Callback = function(c) Window:SetButtonColor(c) end,
+			Callback = setButtonColor,
 		})
 
 		Tab:Input({
@@ -4096,7 +4185,7 @@ function Library:CreateWindow(opts)
 			Desc = "Text on the button (empty = icon only)",
 			Placeholder = "Name...",
 			Default = openCfg.Name or "",
-			Callback = function(text) Window:SetButtonName(text) end,
+			Callback = setButtonName,
 		})
 
 		Tab:Input({
@@ -4104,62 +4193,53 @@ function Library:CreateWindow(opts)
 			Desc = "Icon name or rbxassetid (empty = default)",
 			Placeholder = "house",
 			Default = type(openCfg.Image) == "string" and openCfg.Image or "",
-			Callback = function(text) Window:SetButtonIcon(text) end,
+			Callback = setButtonIcon,
 		})
 
 		Tab:Slider({
 			Title = "Button Transparency",
-			Min = 0, Max = 90, Default = math.floor(openBtn.BackgroundTransparency * 100 + 0.5), Step = 1, Suffix = "%",
-			Callback = function(v) Window:SetButtonTransparency(v) end,
+			Min = 0, Max = 100, Default = math.floor(openBtn.BackgroundTransparency * 100 + 0.5), Step = 1, Suffix = "%",
+			Callback = setButtonTransparency,
 		})
 
 		Tab:Dropdown({
 			Title = "Button Position",
 			Desc = "You can also drag the button",
-			Options = Window.ButtonPositionNames,
-			Callback = function(v) Window:SetButtonPosition(v) end,
+			Options = ButtonPositionNames,
+			Callback = setButtonPosition,
 		})
 
-		return Tab
-	end
+		Tab:Section("Notifications")
 
-	--------------------------------------------------------------
-	-- Window:NotificationSettings(tab)
-	-- Adds the notification settings at the bottom of any tab
-	-- (call it after the other elements of that tab).
-	--------------------------------------------------------------
-	function Window:NotificationSettings(tab)
-		tab:Section("Notifications")
-
-		tab:Slider({
+		Tab:Slider({
 			Title = "Notification Size",
 			Desc = "Applies to new notifications",
 			Min = 70, Max = 150, Default = NotifySettings.Size, Step = 5, Suffix = "%",
-			Callback = function(v) Library:SetNotifySize(v) end,
+			Callback = setNotifySize,
 		})
 
-		tab:Dropdown({
+		Tab:Dropdown({
 			Title = "Notification Position",
-			Options = Library.NotifyPositionNames,
+			Options = NotifyPositionNames,
 			Default = NotifySettings.Position,
-			Callback = function(v) Library:SetNotifyPosition(v) end,
+			Callback = setNotifyPosition,
 		})
 
-		tab:Input({
+		Tab:Input({
 			Title = "Notification Icon",
 			Desc = "Icon name or rbxassetid (empty = default)",
 			Placeholder = "bell",
 			Default = NotifySettings.Icon or "",
-			Callback = function(text) Library:SetNotifyIcon(text) end,
+			Callback = setNotifyIcon,
 		})
 
-		tab:Slider({
+		Tab:Slider({
 			Title = "Notification Transparency",
-			Min = 0, Max = 90, Default = NotifySettings.Transparency, Step = 1, Suffix = "%",
-			Callback = function(v) Library:SetNotifyTransparency(v) end,
+			Min = 0, Max = 100, Default = NotifySettings.Transparency, Step = 1, Suffix = "%",
+			Callback = setNotifyTransparency,
 		})
 
-		tab:Button({
+		Tab:Button({
 			Title = "Test Notification",
 			Desc = "Preview with the current settings",
 			Callback = function()
@@ -4171,158 +4251,6 @@ function Library:CreateWindow(opts)
 	return Window
 end
 
---------------------------------------------------------------------
--- Example
---------------------------------------------------------------------
--- Icons: Library.Lucide knows 530 Lucide NAMES (names only - no images).
--- To DRAW them, load an image source BEFORE CreateWindow (any of these, or all):
---   Library:LoadIcons(folder)                         -- a Folder of ImageLabels / Decals named after the icons
---   Library:SetWindUI(WindUI)                         -- uses WindUI's Lucide icons
---   Library:SetIconAssets({ house = "rbxassetid://123", settings = "rbxassetid://456" })
---   (it also accepts your IconIDs module:  Library:SetIconAssets(IconIDs) - it returns how many REAL ids were loaded)
--- Not drawing? run  Library:DebugIcons("house")  and read the output.
--- Then Icon = "house" works in CreateWindow, Window:Tab, Library:KeySystem and Library:Icon().
--- Names are forgiving: "house", "House", "lucide-house" and the old name "home" all match.
--- Library.Lucide.Has("house") / .Search("arrow", 5) / .Count() help you find names.
-
--- Key system (separate from the window). Yields until the key is correct.
-local passed = Library:KeySystem({
-	Title = "My Hub | Key System",   -- title of the key page
-	Key = "12345",                   -- a string, a number, or a table of valid keys
-	Link = "https://example.com/get-key", -- the "Copy Link" button copies this
-	-- Color = "Matte Black",        -- optional: one of the 20 color names
-})
-if not passed then
-	return Library
-end
-
--- Call Library:LoadIcons(folder) BEFORE CreateWindow so Icon = "..." can find the icons.
-
-local Window = Library:CreateWindow({
-	Title = "My Hub",                  -- script name
-	Description = "Simple and clean",  -- text under the title
-	Color = "Matte Black",             -- color NAME (see Library:GetColors())
-	Size = UDim2.new(0, 550, 0, 356),  -- window size
-	Icon = "house",                    -- icon at the left of the title
-})
-
--- Tags: framed words next to the title.  Text, Color (name), Size, Rounded
-Window:Tag({ Text = "v1.0", Color = "Blue" })
-Window:Tag({ Text = "PRO", Color = "Purple", Rounded = false, Size = UDim2.fromOffset(40, 18) })
-
--- Open button: Name, Size, Image (icon name / rbxassetid), Color (name), Position, Draggable
-Window:OpenButton({
-	Name = "Hub",
-	Size = UDim2.fromOffset(56, 56),
-	Image = "house",
-	Color = "Matte Black",
-	Position = UDim2.new(0, 20, 0.5, -28),
-	Draggable = true,
-})
-
-local Main = Window:Tab({ Title = "Main", Icon = "house" })
-local Settings = Window:Tab({ Title = "Settings", Icon = "settings" })
-
-Main:Label("Welcome! This is a label.")
-
-Main:Note({
-	Title = "Dark note",
-	Text = "This is a dark note for general information.",
-	Style = "Dark",
-})
-
-Main:Note({
-	Title = "Blue note",
-	Text = "This is a blue note for important information.",
-	Style = "Blue",
-})
-
-Main:Button({
-	Title = "Test Button",
-	Desc = "Shows a notification when clicked",
-	Callback = function()
-		Library:Notify({
-			Title = "Success",
-			Content = "The button was clicked successfully.",
-			Type = "success", -- info | success | warning | error
-			Duration = 4,
-		})
-	end,
-})
-
-Main:Toggle({
-	Title = "Enable Feature",
-	Desc = "Turn this feature on or off",
-	Default = false,
-	Callback = function(state)
-		print("Toggle:", state)
-	end,
-})
-
-Main:Input({
-	Title = "Player Name",
-	Desc = "Type a name and press Enter",
-	Placeholder = "Name...",
-	Callback = function(text)
-		Library:Notify({ Title = "Input", Content = "You typed: " .. text, Type = "info", Duration = 3 })
-	end,
-})
-
-Settings:Section("Combat")
-
-Settings:Dropdown({
-	Title = "Target",
-	Desc = "Pick one option",
-	Options = { "Head", "Torso", "Legs", "Arms" },
-	Default = "Head",
-	Callback = function(value) print("Dropdown:", value) end,
-})
-
-Settings:Dropdown({
-	Title = "Features",
-	Desc = "Pick several options",
-	Options = { "Speed", "Jump", "Fly", "Noclip", "ESP" },
-	Multi = true,
-	Default = { "Speed" },
-	Callback = function(list) print("Multi:", table.concat(list, ", ")) end,
-})
-
-Settings:Slider({
-	Title = "Walk Speed",
-	Desc = "Drag to change the value",
-	Min = 16,
-	Max = 100,
-	Default = 16,
-	Step = 1,
-	Suffix = "",
-	Callback = function(value)
-		print("Slider:", value)
-	end,
-})
-
-Settings:Section("Appearance")
-
-Settings:ColorPicker({
-	Title = "ESP Color",
-	Desc = "Click to open the picker",
-	Default = Color3.fromRGB(255, 80, 80),
-	Callback = function(color)
-		print("Color:", color)
-	end,
-})
-
-Settings:Toggle({
-	Title = "Another Option",
-	Callback = function(state) print("Option:", state) end,
-})
-
--- Notification settings (size / position / icon / transparency) at the bottom of Settings.
--- Call it after the other elements of the tab so the section sits under all of them.
-Window:NotificationSettings(Settings)
-
--- Interface tab (created last, so it appears under Settings):
--- window transparency / color / size / font size / font + open button settings.
-local Interface = Window:InterfaceTab({ Title = "Interface", Icon = "palette" })
 
 return Library
  
