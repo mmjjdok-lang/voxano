@@ -2,19 +2,6 @@
 	SimpleUI
 	Default size: UDim2.new(0, 550, 0, 356)
 
-	NEW in this version:
-	  * The tabs live inside their own solid frame (they stay visible when you raise the window transparency).
-	  * Every Button / Toggle has a small pin button on its left:
-	      press it  -> a floating button appears on screen + a small panel opens
-	                   (button color, size box, draggable on/off)
-	      press again -> the floating button is removed
-	  * Config system: everything (Settings tab, every Toggle / Slider / Dropdown / Input / ColorPicker
-	    and the floating buttons) can be saved / loaded from the Settings tab ("Config" section).
-	      Window:SaveConfig(name)   Window:LoadConfig(name)   Window:DeleteConfig(name)
-	      Window:ListConfigs()      Window:SetAutoLoad(name or nil)   Window:AutoLoad()
-	  * Element options: Flag = "unique_name" (config key), NoSave = true, NoFloat = true (Button / Toggle)
-]]
-
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
