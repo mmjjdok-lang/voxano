@@ -1,18 +1,29 @@
 --[[
 	SimpleUI
 	Default size: UDim2.new(0, 550, 0, 356)
+
+	NEW in this version:
+	  * The tabs live inside their own solid frame (they stay visible when you raise the window transparency).
+	  * Every Button / Toggle has a small pin button on its left:
+	      press it  -> a floating button appears on screen + a small panel opens
+	                   (button color, size box, draggable on/off)
+	      press again -> the floating button is removed
+	  * Config system: everything (Settings tab, every Toggle / Slider / Dropdown / Input / ColorPicker
+	    and the floating buttons) can be saved / loaded from the Settings tab ("Config" section).
+	      Window:SaveConfig(name)   Window:LoadConfig(name)   Window:DeleteConfig(name)
+	      Window:ListConfigs()      Window:SetAutoLoad(name or nil)   Window:AutoLoad()
+	  * Element options: Flag = "unique_name" (config key), NoSave = true, NoFloat = true (Button / Toggle)
 ]]
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
 --------------------------------------------------------------------
 -- Anti-duplicate protection
--- The check and the lock happen in the same instant (no yielding in
--- between), so even if the script is executed many times at once,
--- only the first run builds a UI. The others just get the existing one.
 --------------------------------------------------------------------
 local env = (getgenv and getgenv()) or _G
 
@@ -29,9 +40,9 @@ local State = { Library = Library, Gui = nil, Mounted = false, Conns = {} }
 env.__SimpleUI = State -- lock
 
 Library.Window = nil
-Library.LucideIcons = nil   -- lucide table: WindUI.Creator.Icons.Icons.lucide
-Library.WindUI = nil        -- or the whole WindUI object (preferred, most reliable)
-Library.IconResolver = nil  -- optional: function(name) return {Image=..., RectSize=..., RectOffset=...} end
+Library.LucideIcons = nil
+Library.WindUI = nil
+Library.IconResolver = nil
 
 --------------------------------------------------------------------
 -- Helpers
@@ -69,8 +80,20 @@ local function safeCall(fn, ...)
 	end
 end
 
+local function toHex(c)
+	return string.format("#%02X%02X%02X",
+		math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
+end
+
+local function fromHex(str)
+	if type(str) ~= "string" then return nil end
+	local r, g, b = (str:gsub("#", "")):match("^(%x%x)(%x%x)(%x%x)$")
+	if not r then return nil end
+	return Color3.fromRGB(tonumber(r, 16), tonumber(g, 16), tonumber(b, 16))
+end
+
 local Theme = {
-	Background = Color3.fromRGB(18, 18, 18), -- matte black
+	Background = Color3.fromRGB(18, 18, 18),
 	Surface = Color3.fromRGB(28, 28, 28),
 	SurfaceHover = Color3.fromRGB(36, 36, 36),
 	Stroke = Color3.fromRGB(48, 48, 48),
@@ -82,14 +105,8 @@ local Theme = {
 
 --------------------------------------------------------------------
 -- Color palette: pick colors by NAME (20 colors)
--- Color  = UI background color name (e.g. Color = "Navy")
--- Accent = highlight color name   (e.g. Accent = "Red")
--- Names: Matte Black, Black, Charcoal, Gray, Navy, Blue, Sky, Teal, Green,
---        Forest, Olive, Yellow, Orange, Red, Maroon, Pink, Magenta, Purple,
---        Indigo, Brown   (not case-sensitive; Library:GetColors() lists them)
 --------------------------------------------------------------------
 local Palette = {
-	-- { name, background, accent }
 	{ "Matte Black", Color3.fromRGB(18, 18, 18), Color3.fromRGB(88, 135, 255) },
 	{ "Black",       Color3.fromRGB(8, 8, 8),    Color3.fromRGB(230, 230, 230) },
 	{ "Charcoal",    Color3.fromRGB(30, 32, 36), Color3.fromRGB(150, 160, 175) },
@@ -123,13 +140,12 @@ for _, entry in ipairs(Palette) do
 	table.insert(Library.Colors, entry[1])
 end
 
-PaletteMap["dark"] = PaletteMap["mattblack"] or PaletteMap["matteblack"] -- alias: Color = "Dark"
+PaletteMap["dark"] = PaletteMap["mattblack"] or PaletteMap["matteblack"]
 
 function Library:GetColors()
 	return table.clone(Library.Colors)
 end
 
--- returns background, accent for a palette name (a Color3 is passed through)
 local function lookupColor(v)
 	if typeof(v) == "Color3" then return v, nil end
 	if type(v) == "string" then
@@ -164,8 +180,6 @@ end
 
 --------------------------------------------------------------------
 -- ScreenGui
--- Built un-parented and mounted once on the next frame, so the whole
--- UI appears instantly in one go.
 --------------------------------------------------------------------
 local gui = new("ScreenGui", {
 	Name = "SimpleUI",
@@ -189,7 +203,6 @@ local function mountGui()
 	end
 	State.Mounted = true
 
-	-- remove leftovers of older runs / older versions (only one SimpleUI may exist)
 	local parent = gui.Parent
 	if parent then
 		for _, child in ipairs(parent:GetChildren()) do
@@ -207,7 +220,7 @@ local function destroyAll()
 	end
 	State.Conns = {}
 	pcall(function() gui:Destroy() end)
-	if env.__SimpleUI == State then env.__SimpleUI = nil end -- release the lock
+	if env.__SimpleUI == State then env.__SimpleUI = nil end
 	Library.Window = nil
 end
 
@@ -233,7 +246,6 @@ local function toAsset(v)
 	return nil
 end
 
--- Understands the different shapes WindUI uses for icon data
 local function parseIcon(data, set)
 	if data == nil then return nil end
 	if type(data) == "string" or type(data) == "number" then
@@ -243,14 +255,13 @@ local function parseIcon(data, set)
 	if type(data) ~= "table" then return nil end
 
 	local meta = data
-	if type(data[2]) == "table" then meta = data[2] end -- {sheetId, {ImageRectSize, ImageRectPosition}}
+	if type(data[2]) == "table" then meta = data[2] end
 
 	local img = data.Image or data.Id or data.id or data[1]
 	local size = meta.ImageRectSize or data.ImageRectSize or meta.RectSize or data.RectSize
 	local off = meta.ImageRectPosition or meta.ImageRectOffset or data.ImageRectPosition
 		or data.ImageRectOffset or meta.RectOffset or data.RectOffset
 
-	-- Image can be an index into set.Spritesheets
 	local sheets = type(set) == "table" and set.Spritesheets or nil
 	if sheets and (type(img) == "number" or (type(img) == "string" and img:match("^%d+$"))) then
 		local sheet = sheets[tostring(img)] or sheets[tonumber(img)]
@@ -265,14 +276,6 @@ end
 local iconCache = {}
 local warned = {}
 
---------------------------------------------------------------------
--- Lucide registry (names + aliases + lookup helpers)
--- The registry only knows icon NAMES. To actually draw an icon you need an
--- image source, checked in this order for every icon:
---   1) Lucide.Assets / Library:SetIconAssets({ house = "rbxassetid://123" })
---   2) icons loaded from a folder:  Library:LoadIcons(folder)
---   3) WindUI:                      Library:SetWindUI(WindUI)
---------------------------------------------------------------------
 local Lucide = { Names = {}, Set = {}, Compact = {}, Aliases = {}, Assets = {}, AssetsByKey = {} }
 Library.Lucide = Lucide
 
@@ -352,10 +355,9 @@ credit-card-minus
 for name in LUCIDE_NAMES:gmatch("%S+") do
 	table.insert(Lucide.Names, name)
 	Lucide.Set[name] = true
-	Lucide.Compact[normName(name)] = name -- "ArrowLeft" / "arrow_left" -> "arrow-left"
+	Lucide.Compact[normName(name)] = name
 end
 
--- renamed icons: both spellings resolve to whichever one your source has
 for _, pair in ipairs({
 	{ "home", "house" },
 	{ "check-circle", "circle-check" },
@@ -377,7 +379,6 @@ for _, pair in ipairs({
 	Lucide.Aliases[pair[2]] = pair[1]
 end
 
--- "Lucide-Arrow Left" / "arrow_left" -> "arrow-left"
 function Lucide.Normalize(name)
 	if type(name) ~= "string" then return nil end
 	local n = name:lower()
@@ -424,7 +425,6 @@ function Lucide.Search(query, limit)
 	return out
 end
 
--- names to try for one requested icon: the canonical name, then its alias
 function Lucide.Candidates(name)
 	local c = Lucide.Canonical(name)
 	if not c then return {} end
@@ -434,11 +434,6 @@ function Lucide.Candidates(name)
 	return list
 end
 
--- Library:SetIconAssets({ house = "rbxassetid://123", ["arrow-left"] = 456, ... }) -> number of ids loaded
--- * keys can be written any way: "arrow-left", "ArrowLeft", "arrowleft"
--- * values: asset id (number / "rbxassetid://..") or { Image = "...", RectSize = V2, RectOffset = V2 }
--- * also accepts a module that has exportTable() (like the IconIDs module)
--- * empty values (0 / "" / nil) are skipped, so a template full of zeros loads nothing and breaks nothing
 function Library:SetIconAssets(tbl)
 	if type(tbl) == "table" and type(tbl.exportTable) == "function" then
 		local ok, exported = pcall(tbl.exportTable)
@@ -463,8 +458,7 @@ end
 
 --------------------------------------------------------------------
 -- ICONS: Tree Hub + Solar (merged)
---------------------------------------------------------------------
-local IconIDs = {
+--------------------------------------------------------------------local IconIDs = {
 	["abbr-api"] = "rbxassetid://135442589868056",
 	["abbr-ml"] = "rbxassetid://137903102602332",
 	["abbr-ql"] = "rbxassetid://110049046211149",
@@ -1246,13 +1240,7 @@ local IconIDs = {
 	["xmark"] = "rbxassetid://116696831480300",
 	["xmark-shape"] = "rbxassetid://113332623964226",
 	["xmark-shape-fill"] = "rbxassetid://102835594333260",
-}
-
--- Lucide-style names -> Tree Hub icons.
--- The library asks for names like "settings", "x", "eye-off", "menu"...
--- but this icon set calls them "gear", "xmark", "eye-slash", "bars"...
--- so each Lucide name below points to the matching icon id.
-local IconAliases = {
+}local IconAliases = {
 	["settings"] = "gear",
 	["cog"] = "gear",
 	["x"] = "xmark",
@@ -1314,29 +1302,23 @@ local IconAliases = {
 	["globe-2"] = "planet-earth",
 }
 
--- Merge: Tree Hub set (local) + Solar set (7330 icons, loaded from GitHub)
 local SOLAR_URL = "https://raw.githubusercontent.com/Footagesus/Icons/refs/heads/main/solar/dist/Icons.lua"
 
 do
 	local all = {}
-	-- 1) local Tree Hub icons (always available, even offline)
 	for k, v in pairs(IconIDs) do all[k] = v end
-	-- 2) Lucide-style aliases -> Tree Hub icons
 	for alias, real in pairs(IconAliases) do
 		if all[alias] == nil and IconIDs[real] then
 			all[alias] = IconIDs[real]
 		end
 	end
-	-- 3) Solar icons (needs HttpGet; if it fails the Tree Hub icons still work)
 	local okSolar, solar = pcall(function()
 		return loadstring(game:HttpGet(SOLAR_URL))()
 	end)
 	if okSolar and type(solar) == "table" then
-		-- full names, e.g. "home-bold", "home-linear", "home-bold-duotone"
 		for k, v in pairs(solar) do
 			if all[k] == nil then all[k] = v end
 		end
-		-- short names, e.g. "home" (style priority: linear > outline > bold)
 		for _, suffix in ipairs({ "-linear", "-outline", "-bold" }) do
 			for k, v in pairs(solar) do
 				if k:sub(-#suffix) == suffix then
@@ -1351,8 +1333,6 @@ do
 	Library:SetIconAssets(all)
 end
 
-
--- Lucide icons taken from a folder in the game (ImageLabels / Decals named after the icon)
 local folderIcons = {}
 
 local function iconKey(name)
@@ -1376,8 +1356,6 @@ local genericNames = {
 	icon = true, image = true, imagelabel = true, imagebutton = true, decal = true, texture = true,
 }
 
--- Library:LoadIcons(folder) -> number of icons loaded
--- After this, Icon = "house" (or "House", "lucide-house", or the old name "home") works for tabs and everything else.
 function Library:LoadIcons(folder)
 	if typeof(folder) ~= "Instance" then
 		warn("[SimpleUI] LoadIcons expects a Folder instance.")
@@ -1388,7 +1366,6 @@ function Library:LoadIcons(folder)
 	for _, item in ipairs(getAllLucideIcons(folder)) do
 		local inst = item.instance
 		local name = item.name
-		-- if the image is inside a container (e.g. Frame "home" > ImageLabel "Icon"), use the container name
 		if genericNames[name:lower()] and inst.Parent and inst.Parent ~= folder then
 			name = inst.Parent.Name
 		end
@@ -1413,7 +1390,6 @@ function Library:LoadIcons(folder)
 	return count
 end
 
--- WindUI as an image source (official function first, then its lucide table)
 local function windIcon(clean)
 	local wind = Library.WindUI or env.WindUI or _G.WindUI
 	local result
@@ -1461,25 +1437,22 @@ local function resolveIcon(name)
 	if name:find("^rbxassetid://") or name:find("^rbxasset://") then
 		result = { Image = name }
 	else
-		-- custom resolver
 		if Library.IconResolver then
 			local ok, res = pcall(Library.IconResolver, name)
 			if ok and res then result = res end
 		end
 
-		-- registry: canonical name + alias, each checked against every image source
 		if not result then
 			for _, cand in ipairs(Lucide.Candidates(name)) do
 				local asset = Lucide.Assets[cand]
 				if asset == nil then asset = Lucide.AssetsByKey[normName(cand)] end
-				if asset ~= nil then result = parseIcon(asset, nil) end   -- 1) your asset ids
-				if not result then result = folderIcons[iconKey(cand)] end -- 2) folder
-				if not result then result = windIcon(cand) end            -- 3) WindUI
+				if asset ~= nil then result = parseIcon(asset, nil) end
+				if not result then result = folderIcons[iconKey(cand)] end
+				if not result then result = windIcon(cand) end
 				if result then break end
 			end
 		end
 
-		-- helpful one-time warnings (never for emoji / plain text glyphs)
 		if not result and name:match("^[%w%-_:%s]+$") then
 			if not hasIconSource() then
 				if not noSourceWarned then
@@ -1505,7 +1478,6 @@ local function resolveIcon(name)
 	return result
 end
 
--- fallbackGlyph is shown when the icon can't be resolved
 local function createIcon(parent, icon, size, color, fallbackGlyph)
 	local data = resolveIcon(icon)
 	if data and data.Image then
@@ -1535,18 +1507,14 @@ local function createIcon(parent, icon, size, color, fallbackGlyph)
 	}, parent)
 end
 
--- Public helpers
--- Library:Icon(parent, "house", 18, color) -> the icon instance (ImageLabel, or a glyph if no image)
 function Library:Icon(parent, name, size, color)
 	return createIcon(parent, name, size or 18, color or Theme.Text)
 end
 
--- Library:HasIcon("house") -> true only if an image can really be drawn for it
 function Library:HasIcon(name)
 	return resolveIcon(name) ~= nil
 end
 
--- Library:DebugIcons("house") -> prints which icon sources are loaded and what each one returns
 function Library:DebugIcons(name)
 	name = name or "house"
 	local function count(t)
@@ -1587,7 +1555,7 @@ function Library:DebugIcons(name)
 end
 
 --------------------------------------------------------------------
--- Dragging (returns a function telling whether a real drag happened)
+-- Dragging
 --------------------------------------------------------------------
 local function makeDraggable(handle, target, isEnabled)
 	local dragging, dragStart, startPos = false, nil, nil
@@ -1623,23 +1591,16 @@ local function makeDraggable(handle, target, isEnabled)
 end
 
 --------------------------------------------------------------------
--- Notify (bottom right)
--- Library:Notify({ Title, Content, Duration, Type = "info"|"success"|"warning"|"error", Icon, Color })
--- Click a notification to dismiss it early.
+-- Notify
 --------------------------------------------------------------------
 local TextService = game:GetService("TextService")
 
---------------------------------------------------------------------
--- Live style: font family + font size
--- Used by the window (Interface tab) and by notifications.
---------------------------------------------------------------------
 local function enumFont(name)
 	local ok, f = pcall(function() return Enum.Font[name] end)
 	if ok and typeof(f) == "EnumItem" then return f end
 	return nil
 end
 
--- { display name, regular, medium, bold }
 local FontFamilies = {
 	{ "Gotham", "Gotham", "GothamMedium", "GothamBold" },
 	{ "Source Sans", "SourceSans", "SourceSansSemibold", "SourceSansBold" },
@@ -1664,8 +1625,6 @@ end
 
 local UIStyle = { Font = "Gotham", FontScale = 1 }
 
--- applies the current font (and font size) to one text object.
--- The original size / weight are remembered in attributes, so changes are never cumulative.
 local function styleText(obj, withSize)
 	if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
 	local weight = obj:GetAttribute("SUI_W")
@@ -1689,14 +1648,9 @@ local function styleText(obj, withSize)
 	end
 end
 
---------------------------------------------------------------------
--- Notification settings (internal)
--- Library:Notify reads them; they are changed from the built-in Settings tab.
---------------------------------------------------------------------
 local NotifySettings = { Size = 100, Position = "Bottom Right", Icon = nil, Transparency = 0 }
 
 local HA, VA = Enum.HorizontalAlignment, Enum.VerticalAlignment
--- { anchor X, anchor Y, list horizontal alignment, list vertical alignment }
 local NotifyPositions = {
 	["Top Left"] = { 0, 0, HA.Left, VA.Top },
 	["Top Center"] = { 0.5, 0, HA.Center, VA.Top },
@@ -1718,7 +1672,7 @@ local notifyHolder = new("Frame", {
 	BackgroundTransparency = 1,
 	AnchorPoint = Vector2.new(1, 1),
 	Position = UDim2.new(1, -16, 1, -16),
-	Size = UDim2.new(0, 480, 1, -32), -- wide enough for 150% notifications
+	Size = UDim2.new(0, 480, 1, -32),
 }, gui)
 
 local notifyLayout = new("UIListLayout", {
@@ -1741,7 +1695,6 @@ local function applyNotifyPosition()
 end
 applyNotifyPosition()
 
--- the direction a notification slides in from (depends on the position)
 local function slideOffset()
 	local p = NotifyPositions[NotifySettings.Position] or NotifyPositions["Bottom Right"]
 	if p[1] == 0 then return Vector2.new(-70, 0) end
@@ -1749,7 +1702,7 @@ local function slideOffset()
 	return Vector2.new(0, p[2] == 0 and -30 or 30)
 end
 
-local liveCards = {} -- cards currently on screen (so transparency can change live)
+local liveCards = {}
 
 local function setNotifySize(pct)
 	NotifySettings.Size = math.clamp(tonumber(pct) or 100, 50, 200)
@@ -1781,7 +1734,7 @@ end
 local notifyCount = 0
 
 local NotifyTypes = {
-	info = { color = nil, icon = "info", glyph = "i" }, -- nil = theme accent
+	info = { color = nil, icon = "info", glyph = "i" },
 	success = { color = Color3.fromRGB(60, 200, 100), icon = "check", glyph = "✓" },
 	warning = { color = Color3.fromRGB(245, 180, 50), icon = "triangle-alert", glyph = "!" },
 	error = { color = Color3.fromRGB(235, 70, 70), icon = "x", glyph = "✕" },
@@ -1799,10 +1752,9 @@ function Library:Notify(opts)
 	local from = slideOffset()
 	local fam = FontMap[UIStyle.Font] or FontMap.Gotham
 
-	local WIDTH = 300 -- base width; the card is scaled with UIScale
+	local WIDTH = 300
 	local content = tostring(opts.Content or "")
 
-	-- measure the message so the card fits it exactly
 	local textH = 0
 	if content ~= "" then
 		local ok, size = pcall(function()
@@ -1830,14 +1782,12 @@ function Library:Notify(opts)
 	stroke(card, Theme.Stroke)
 	liveCards[card] = true
 
-	-- colored edge
 	new("Frame", {
 		BackgroundColor3 = accent,
 		BorderSizePixel = 0,
 		Size = UDim2.new(0, 3, 1, 0),
 	}, card)
 
-	-- icon badge
 	local badge = new("Frame", {
 		BackgroundColor3 = accent,
 		BackgroundTransparency = 0.82,
@@ -1876,7 +1826,6 @@ function Library:Notify(opts)
 		}, card)
 	end
 
-	-- progress bar (shrinks until the notification disappears)
 	local track = new("Frame", {
 		BackgroundColor3 = Theme.Stroke,
 		BorderSizePixel = 0,
@@ -1896,10 +1845,8 @@ function Library:Notify(opts)
 		ZIndex = 5,
 	}, card)
 
-	-- the notification uses the window font (the size is handled by the size setting)
 	for _, d in ipairs(card:GetDescendants()) do styleText(d, false) end
 
-	-- slide in + fade in (to the chosen transparency)
 	tween(card, 0.3, { Position = UDim2.fromOffset(0, 0), GroupTransparency = alpha }, Enum.EasingStyle.Quint)
 	TweenService:Create(fill, TweenInfo.new(duration, Enum.EasingStyle.Linear), { Size = UDim2.fromScale(0, 1) }):Play()
 
@@ -1909,7 +1856,6 @@ function Library:Notify(opts)
 		dismissed = true
 		liveCards[card] = nil
 		if not slot.Parent then return end
-		-- slide out + fade out, then the stack collapses smoothly
 		tween(card, 0.22, { Position = UDim2.fromOffset(from.X, from.Y), GroupTransparency = 1 })
 		task.wait(0.23)
 		if not slot.Parent then return end
@@ -1925,10 +1871,7 @@ function Library:Notify(opts)
 end
 
 --------------------------------------------------------------------
--- Key system (separate from the window)
--- local passed = Library:KeySystem({ Title, Key, Link, Callback })
--- Yields until the key is correct (returns true) or the window is closed
--- (returns false). Pass Wait = false to not yield.
+-- Key system
 --------------------------------------------------------------------
 local function copyToClipboard(text)
 	local fn = setclipboard or toclipboard or set_clipboard
@@ -1950,7 +1893,6 @@ function Library:KeySystem(opts)
 	applyTheme(opts.Color, opts.Accent)
 	local bg, accent = Theme.Background, Theme.Accent
 
-	-- accepted keys: a string, a number, or a table of them
 	local validKeys = {}
 	if type(opts.Key) == "table" then
 		for _, v in ipairs(opts.Key) do validKeys[tostring(v)] = true end
@@ -1996,8 +1938,7 @@ function Library:KeySystem(opts)
 	corner(box, 12)
 	stroke(box, Theme.Stroke)
 
-	-- header: icon + key page title + close
-	local keyIcon = opts.Icon or "rbxassetid://97389060854402" -- default key window image
+	local keyIcon = opts.Icon or "rbxassetid://97389060854402"
 	local keyIconIsAsset = type(keyIcon) == "string" and keyIcon:find("^rbxasset") ~= nil
 	local ic = createIcon(box, keyIcon, 24, keyIconIsAsset and Color3.new(1, 1, 1) or Theme.Text, "🔑")
 	ic.Position = UDim2.fromOffset(14, 10)
@@ -2045,7 +1986,6 @@ function Library:KeySystem(opts)
 		TextColor3 = Theme.SubText,
 	}, box)
 
-	-- key input
 	local input = new("TextBox", {
 		BackgroundColor3 = Theme.Surface,
 		Position = UDim2.fromOffset(16, 78),
@@ -2066,7 +2006,6 @@ function Library:KeySystem(opts)
 		PaddingRight = UDim.new(0, 12),
 	}, input)
 
-	-- key link + copy button
 	if hasLink then
 		local linkBox = new("Frame", {
 			BackgroundColor3 = Theme.Surface,
@@ -2113,7 +2052,6 @@ function Library:KeySystem(opts)
 		end)
 	end
 
-	-- check button
 	local checkBtn = new("TextButton", {
 		BackgroundColor3 = accent,
 		Position = UDim2.fromOffset(16, checkY),
@@ -2168,13 +2106,330 @@ function Library:KeySystem(opts)
 
 	if opts.Wait == false then return end
 	return done.Event:Wait()
+end--------------------------------------------------------------------
+-- Floating buttons
+--------------------------------------------------------------------
+local floatSpawnCount = 0
+
+local function viewportSize()
+	local s = gui.AbsoluteSize
+	if s.X <= 0 or s.Y <= 0 then
+		local ok, vp = pcall(function() return workspace.CurrentCamera.ViewportSize end)
+		s = ok and vp or Vector2.new(800, 600)
+	end
+	return s
+end
+
+local function createFloatButton(cfg)
+	local F = {}
+	local color = cfg.Color or Theme.Accent
+	local size = math.clamp(tonumber(cfg.Size) or 56, 28, 140)
+	local draggable = cfg.Draggable ~= false
+	local isToggle = cfg.IsToggle == true
+	local on = cfg.State == true
+	local alive = true
+	local conns = {}
+
+	local function clampPos(x, y)
+		local vp = viewportSize()
+		local half = size / 2
+		return math.clamp(x, half, math.max(half, vp.X - half)),
+			math.clamp(y, half, math.max(half, vp.Y - half))
+	end
+
+	local vp0 = viewportSize()
+	local curX, curY = clampPos((cfg.X or 0.15) * vp0.X, (cfg.Y or 0.4) * vp0.Y)
+	local tgtX, tgtY = curX, curY
+
+	local root = new("Frame", {
+		Name = "FloatButton",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(curX, curY),
+		Size = UDim2.fromOffset(size, size),
+		ZIndex = 60,
+	}, gui)
+	local rootScale = new("UIScale", { Scale = 0 }, root)
+
+	local ring = new("Frame", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		Visible = false,
+		ZIndex = 1,
+	}, root)
+	new("UICorner", { CornerRadius = UDim.new(0.28, 0) }, ring)
+	local ringStroke = stroke(ring, color, 2)
+
+	local btn = new("CanvasGroup", {
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.8,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		Active = true,
+		ZIndex = 2,
+	}, root)
+	new("UICorner", { CornerRadius = UDim.new(0.28, 0) }, btn)
+	local btnStroke = stroke(btn, color, 1.5)
+	local pulseScale = new("UIScale", { Scale = 1 }, btn)
+
+	local label = new("TextLabel", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Text = tostring(cfg.Title or "Button"),
+		TextWrapped = true,
+		TextScaled = true,
+		Font = (FontMap[UIStyle.Font] or FontMap.Gotham).bold,
+		TextColor3 = Theme.Text,
+		TextStrokeTransparency = 0.75,
+		ZIndex = 3,
+	}, btn)
+	new("UIPadding", {
+		PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6),
+		PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6),
+	}, label)
+	new("UITextSizeConstraint", { MaxTextSize = 15, MinTextSize = 6 }, label)
+
+	local pulseTweens = {}
+	local function stopPulse()
+		for _, t in ipairs(pulseTweens) do pcall(function() t:Cancel() end) end
+		pulseTweens = {}
+		ring.Visible = false
+		ring.Size = UDim2.fromScale(1, 1)
+		pulseScale.Scale = 1
+	end
+	local function startPulse()
+		stopPulse()
+		ring.Visible = true
+		ring.Size = UDim2.fromScale(1, 1)
+		ringStroke.Transparency = 0.25
+		local beat = TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+		local wave = TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, -1, false)
+		pulseTweens = {
+			TweenService:Create(pulseScale, beat, { Scale = 1.07 }),
+			TweenService:Create(ring, wave, { Size = UDim2.fromScale(1.5, 1.5) }),
+			TweenService:Create(ringStroke, wave, { Transparency = 1 }),
+		}
+		for _, t in ipairs(pulseTweens) do t:Play() end
+	end
+
+	local function baseTransparency()
+		if isToggle then return on and 0.5 or 0.82 end
+		return 0.8
+	end
+
+	local function paintState(animate)
+		if not isToggle then return end
+		if animate then
+			tween(btn, 0.2, { BackgroundTransparency = baseTransparency() })
+		else
+			btn.BackgroundTransparency = baseTransparency()
+		end
+		if on then startPulse() else stopPulse() end
+	end
+	paintState(false)
+
+	local function ripple(pos)
+		if not alive then return end
+		local px = pos.X - btn.AbsolutePosition.X
+		local py = pos.Y - btn.AbsolutePosition.Y
+		local big = size * 2.4
+		local tint = Color3.new(1, 1, 1):Lerp(color, 0.35)
+
+		local drop = new("Frame", {
+			BackgroundColor3 = tint,
+			BackgroundTransparency = 0.45,
+			BorderSizePixel = 0,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(px, py),
+			Size = UDim2.fromOffset(0, 0),
+			ZIndex = 1,
+		}, btn)
+		new("UICorner", { CornerRadius = UDim.new(1, 0) }, drop)
+		tween(drop, 0.6, { Size = UDim2.fromOffset(big, big), BackgroundTransparency = 1 })
+
+		local wave = new("Frame", {
+			BackgroundTransparency = 1,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(px, py),
+			Size = UDim2.fromOffset(0, 0),
+			ZIndex = 1,
+		}, btn)
+		new("UICorner", { CornerRadius = UDim.new(1, 0) }, wave)
+		local waveStroke = stroke(wave, tint, 2)
+		waveStroke.Transparency = 0.2
+		task.delay(0.08, function()
+			if wave.Parent then
+				tween(wave, 0.6, { Size = UDim2.fromOffset(big * 0.8, big * 0.8) })
+				tween(waveStroke, 0.6, { Transparency = 1 })
+			end
+		end)
+
+		task.delay(0.8, function()
+			drop:Destroy()
+			wave:Destroy()
+		end)
+	end
+
+	local loop = nil
+	local held = false
+
+	local function step(dt)
+		local k = 1 - math.exp(-dt * 7)
+		curX += (tgtX - curX) * k
+		curY += (tgtY - curY) * k
+		if not held and math.abs(tgtX - curX) < 0.4 and math.abs(tgtY - curY) < 0.4 then
+			curX, curY = tgtX, tgtY
+			if loop then
+				loop:Disconnect()
+				loop = nil
+			end
+		end
+		root.Position = UDim2.fromOffset(curX, curY)
+	end
+
+	local function ensureLoop()
+		if not loop then loop = RunService.RenderStepped:Connect(step) end
+	end
+
+	local active = nil
+	local startPt, startX, startY = nil, 0, 0
+	local moved = false
+
+	local function isOwner(input)
+		if not active then return false end
+		if input == active then return true end
+		return active.UserInputType == Enum.UserInputType.MouseButton1
+			and input.UserInputType == Enum.UserInputType.MouseButton1
+	end
+
+	local function finish()
+		if not active then return end
+		local wasMoved = moved
+		active = nil
+		held = false
+		tween(rootScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
+		if wasMoved then
+			ensureLoop()
+			if cfg.OnMoved then
+				local vp = viewportSize()
+				cfg.OnMoved(tgtX / vp.X, tgtY / vp.Y)
+			end
+		else
+			if not isToggle then
+				tween(btn, 0.08, { BackgroundTransparency = 0.45 })
+				task.delay(0.12, function()
+					if alive then tween(btn, 0.25, { BackgroundTransparency = baseTransparency() }) end
+				end)
+			end
+			safeCall(cfg.OnPress)
+		end
+	end
+
+	btn.InputBegan:Connect(function(input)
+		local t = input.UserInputType
+		if t ~= Enum.UserInputType.Touch and t ~= Enum.UserInputType.MouseButton1 then return end
+		if active then return end
+		active = input
+		held = true
+		moved = false
+		startPt = input.Position
+		startX, startY = tgtX, tgtY
+		tween(rootScale, 0.12, { Scale = 0.93 })
+		ripple(input.Position)
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End and active == input then finish() end
+		end)
+	end)
+
+	table.insert(conns, UserInputService.InputChanged:Connect(function(input)
+		if not active then return end
+		local ok
+		if active.UserInputType == Enum.UserInputType.Touch then
+			ok = (input == active)
+		else
+			ok = input.UserInputType == Enum.UserInputType.MouseMovement
+		end
+		if not ok then return end
+
+		local d = input.Position - startPt
+		if d.Magnitude > 8 then
+			if not moved then
+				moved = true
+				if draggable then tween(rootScale, 0.15, { Scale = 1.1 }, Enum.EasingStyle.Back) end
+			end
+			if draggable then
+				tgtX, tgtY = clampPos(startX + d.X, startY + d.Y)
+				ensureLoop()
+			end
+		end
+	end))
+
+	table.insert(conns, UserInputService.InputEnded:Connect(function(input)
+		if isOwner(input) then finish() end
+	end))
+
+	function F:SetState(v)
+		on = v == true
+		paintState(true)
+	end
+
+	function F:SetColor(c)
+		if typeof(c) ~= "Color3" then return end
+		color = c
+		btn.BackgroundColor3 = c
+		btnStroke.Color = c
+		ringStroke.Color = c
+	end
+
+	function F:SetSize(px)
+		size = math.clamp(tonumber(px) or size, 28, 140)
+		tween(root, 0.15, { Size = UDim2.fromOffset(size, size) })
+		tgtX, tgtY = clampPos(tgtX, tgtY)
+		ensureLoop()
+		return size
+	end
+
+	function F:SetDraggable(v)
+		draggable = v == true
+	end
+
+	function F:SetPosition(x, y)
+		local vp = viewportSize()
+		tgtX, tgtY = clampPos(x * vp.X, y * vp.Y)
+		curX, curY = tgtX, tgtY
+		root.Position = UDim2.fromOffset(curX, curY)
+	end
+
+	function F:GetPosition()
+		local vp = viewportSize()
+		return tgtX / vp.X, tgtY / vp.Y
+	end
+
+	function F:Destroy()
+		if not alive then return end
+		alive = false
+		active = nil
+		for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+		if loop then
+			loop:Disconnect()
+			loop = nil
+		end
+		stopPulse()
+		tween(rootScale, 0.15, { Scale = 0 })
+		task.delay(0.18, function() root:Destroy() end)
+	end
+
+	tween(rootScale, 0.28, { Scale = 1 }, Enum.EasingStyle.Back)
+	return F
 end
 
 --------------------------------------------------------------------
 -- Window
 --------------------------------------------------------------------
 function Library:CreateWindow(opts)
-	-- Only one window is ever allowed
 	if Library.Window then
 		warn("[SimpleUI] A window already exists, returning the existing one.")
 		return Library.Window
@@ -2182,16 +2437,14 @@ function Library:CreateWindow(opts)
 
 	opts = opts or {}
 	local Window = { Tabs = {}, Current = nil }
-	Library.Window = Window -- set immediately (before anything can yield)
+	Library.Window = Window
 
-	-- Only 4 options: Title, Description, Color (by name), Size
-	applyTheme(opts.Color) -- e.g. Color = "Red" / "Dark" / "Blue" / "Purple" / "Green"
+	applyTheme(opts.Color)
 	local bg = Theme.Background
 	local accent = Theme.Accent
 
 	local fullSize = opts.Size or UDim2.new(0, 550, 0, 356)
 	pcall(function()
-		-- keep the window inside small screens
 		local vp = workspace.CurrentCamera.ViewportSize
 		if fullSize.X.Scale == 0 and fullSize.Y.Scale == 0 then
 			fullSize = UDim2.fromOffset(
@@ -2201,7 +2454,6 @@ function Library:CreateWindow(opts)
 		end
 	end)
 
-	-- CanvasGroup so the whole window can fade (GroupTransparency) and scale (UIScale)
 	local main = new("CanvasGroup", {
 		Name = "Window",
 		BackgroundColor3 = bg,
@@ -2214,7 +2466,6 @@ function Library:CreateWindow(opts)
 	stroke(main, Theme.Stroke)
 	local mainScale = new("UIScale", { Scale = 1 }, main)
 
-	-- Topbar
 	local top = new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 48),
@@ -2222,7 +2473,6 @@ function Library:CreateWindow(opts)
 
 	local hasDesc = opts.Description ~= nil and opts.Description ~= ""
 
-	-- script name (big title)
 	local titleLabel = new("TextLabel", {
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(14, hasDesc and 6 or 13),
@@ -2235,7 +2485,6 @@ function Library:CreateWindow(opts)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 	}, top)
 
-	-- description directly under the title
 	local descLabel
 	if hasDesc then
 		descLabel = new("TextLabel", {
@@ -2251,7 +2500,6 @@ function Library:CreateWindow(opts)
 		}, top)
 	end
 
-	-- Tags: framed words next to the title (version, status, ...)  ->  Window:Tag({ Text, Color, Size, Rounded })
 	local titleX = 14
 	local tagHolder = new("Frame", {
 		BackgroundTransparency = 1,
@@ -2266,7 +2514,6 @@ function Library:CreateWindow(opts)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 	}, tagHolder)
 
-	-- keeps the tags right after the title text (also after SetIcon moves the title)
 	local function layoutTags()
 		local w = 0
 		pcall(function()
@@ -2276,7 +2523,6 @@ function Library:CreateWindow(opts)
 	end
 	layoutTags()
 
-	-- optional: icon at the left of the title -> Window:SetIcon("house")
 	local iconObj
 	function Window:SetIcon(icon)
 		if iconObj then iconObj:Destroy(); iconObj = nil end
@@ -2295,7 +2541,7 @@ function Library:CreateWindow(opts)
 		end
 		layoutTags()
 	end
-	if opts.Icon then Window:SetIcon(opts.Icon) end -- icon at the left of the title
+	if opts.Icon then Window:SetIcon(opts.Icon) end
 
 	local tagCount = 0
 	function Window:Tag(topts)
@@ -2303,10 +2549,10 @@ function Library:CreateWindow(opts)
 		tagCount += 1
 		local Tag = {}
 		local text = tostring(topts.Text or "Tag")
-		local rounded = topts.Rounded ~= false -- soft corners by default
+		local rounded = topts.Rounded ~= false
 
 		local function pick(c)
-			local bgColor, accentColor = lookupColor(c) -- color NAME (or Color3)
+			local bgColor, accentColor = lookupColor(c)
 			return accentColor or bgColor or accent
 		end
 		local color = pick(topts.Color)
@@ -2358,7 +2604,6 @@ function Library:CreateWindow(opts)
 		return Tag
 	end
 
-	-- Title bar buttons: [Hide] [Minimize] [Close]
 	local function topButton(xOffset, iconName, glyph, hoverColor)
 		local b = new("TextButton", {
 			BackgroundColor3 = Theme.Surface,
@@ -2393,7 +2638,6 @@ function Library:CreateWindow(opts)
 
 	makeDraggable(top, main)
 
-	-- Body (sidebar + pages), hidden while minimized
 	local body = new("Frame", {
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(0, 48),
@@ -2405,28 +2649,38 @@ function Library:CreateWindow(opts)
 		Size = UDim2.new(0, 140, 1, 0),
 	}, body)
 
-	local FOOTER = 48 -- bottom area of the sidebar: the Settings tab is pinned there
+	local FOOTER = 48
+
+	-- the tabs live inside their own SOLID frame, so they stay fully visible
+	-- when the window transparency is raised (only the window background fades)
+	local tabFrame = new("Frame", {
+		Name = "TabFrame",
+		BackgroundColor3 = Theme.Background,
+		BackgroundTransparency = 0,
+		Position = UDim2.fromOffset(6, 6),
+		Size = UDim2.new(1, -12, 1, -12),
+	}, sidebar)
+	corner(tabFrame, 10)
+	stroke(tabFrame, Theme.Stroke)
 
 	local tabList = new("ScrollingFrame", {
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(8, 8),
-		Size = UDim2.new(1, -16, 1, -(16 + FOOTER)),
+		Position = UDim2.fromOffset(12, 12),
+		Size = UDim2.new(1, -24, 1, -(24 + FOOTER)),
 		ScrollBarThickness = 0,
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		CanvasSize = UDim2.new(),
 	}, sidebar)
 	new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, tabList)
 
-	-- line above the pinned Settings tab
 	new("Frame", {
 		BackgroundColor3 = Theme.Stroke,
 		BorderSizePixel = 0,
-		Position = UDim2.new(0, 14, 1, -(FOOTER - 2)),
+		Position = UDim2.new(0, 14, 1, -(FOOTER + 2)),
 		Size = UDim2.new(1, -28, 0, 1),
 	}, sidebar)
 
-	-- optional: logo at the bottom of the sidebar -> Window:SetLogo("rbxassetid://123")
 	local logoObj
 	function Window:SetLogo(image)
 		if logoObj then logoObj:Destroy(); logoObj = nil end
@@ -2434,13 +2688,13 @@ function Library:CreateWindow(opts)
 			logoObj = new("ImageLabel", {
 				BackgroundTransparency = 1,
 				AnchorPoint = Vector2.new(0, 1),
-				Position = UDim2.new(0, 14, 1, -(FOOTER + 8)),
+				Position = UDim2.new(0, 16, 1, -(FOOTER + 10)),
 				Size = UDim2.fromOffset(28, 28),
 				Image = image,
 			}, sidebar)
 			corner(logoObj, 6)
 		end
-		tabList.Size = UDim2.new(1, -16, 1, -(16 + FOOTER + (image and 36 or 0)))
+		tabList.Size = UDim2.new(1, -24, 1, -(24 + FOOTER + (image and 36 or 0)))
 	end
 
 	new("Frame", {
@@ -2458,7 +2712,6 @@ function Library:CreateWindow(opts)
 
 	--------------------------------------------------------------
 	-- Open Button
-	-- Window:OpenButton({ Name, Size, Image, Color (name), Position, Draggable })
 	--------------------------------------------------------------
 	local openBtn = new("TextButton", {
 		Name = "OpenButton",
@@ -2496,7 +2749,6 @@ function Library:CreateWindow(opts)
 		local hasImage = openCfg.Image ~= nil and openCfg.Image ~= ""
 		local hasName = openCfg.Name ~= nil and openCfg.Name ~= ""
 
-		-- image / icon (or the default menu glyph when nothing is set)
 		if hasImage or not hasName then
 			local size = math.floor(h * (hasName and 0.45 or 0.55))
 			local isAsset = type(openCfg.Image) == "string" and openCfg.Image:find("^rbxasset") ~= nil
@@ -2505,7 +2757,6 @@ function Library:CreateWindow(opts)
 			ic.LayoutOrder = 1
 		end
 
-		-- name
 		if hasName then
 			local ts = math.clamp(math.floor(h * 0.22), 9, 14)
 			new("TextLabel", {
@@ -2522,7 +2773,6 @@ function Library:CreateWindow(opts)
 	end
 	refreshOpenButton()
 
-	-- hover / press animation
 	openBtn.MouseEnter:Connect(function()
 		tween(openScale, 0.12, { Scale = 1.07 })
 		tween(openStroke, 0.12, { Color = accent })
@@ -2563,14 +2813,12 @@ function Library:CreateWindow(opts)
 	local visible = true
 	local animToken = 0
 
-	-- every tab (the pinned Settings tab is always last)
 	local function allTabs()
 		local list = table.clone(Window.Tabs)
 		if Window._pinned then table.insert(list, Window._pinned) end
 		return list
 	end
 
-	-- loading bar at the top of the pages (sweeps across when a tab opens)
 	local loadBar = new("Frame", {
 		BackgroundColor3 = accent,
 		BackgroundTransparency = 1,
@@ -2591,13 +2839,17 @@ function Library:CreateWindow(opts)
 		end)
 	end
 
-	-- "loading" effect: every button / element of the tab shows a shimmering
-	-- placeholder that fades away one after another
 	local function playLoad(tab)
 		local scroll = tab._scroll
 		if not scroll then return end
 		local n = 0
-		for _, e in ipairs(scroll:GetChildren()) do
+		for _, e0 in ipairs(scroll:GetChildren()) do
+			local e = e0
+			-- Button / Toggle cards live inside a transparent holder: use the card itself
+			if e:IsA("GuiObject") and e.BackgroundTransparency >= 1 then
+				local inner = e:FindFirstChild("SUI_Card")
+				if inner then e = inner end
+			end
 			if e:IsA("GuiObject") and e.BackgroundTransparency < 1 then
 				n += 1
 				local cover = new("Frame", {
@@ -2628,7 +2880,6 @@ function Library:CreateWindow(opts)
 		end
 	end
 
-	-- page transition: the new page slides up + fades in, then its buttons "load"
 	local function showPage(tab, animate)
 		local wrap = tab._page
 		wrap.Visible = true
@@ -2644,7 +2895,6 @@ function Library:CreateWindow(opts)
 		end
 	end
 
-	-- tab buttons slide in / out of the sidebar, one after another
 	local function animateTabs(showing, token)
 		for i, t in ipairs(allTabs()) do
 			local b = t._btn
@@ -2693,7 +2943,6 @@ function Library:CreateWindow(opts)
 		if v == minimized then return end
 		minimized = v
 		if v then
-			-- collapse to the title bar only, centered on screen
 			savedPos = main.Position
 			body.Visible = false
 			divider.Visible = false
@@ -2702,7 +2951,6 @@ function Library:CreateWindow(opts)
 				Position = UDim2.fromScale(0.5, 0.5),
 			})
 		else
-			-- restore the frame; the title bar goes back up to where it was
 			body.Visible = true
 			divider.Visible = true
 			tween(main, 0.15, { Size = fullSize, Position = savedPos })
@@ -2795,9 +3043,176 @@ function Library:CreateWindow(opts)
 	closeBtn.Activated:Connect(confirmDelete)
 
 	--------------------------------------------------------------
+	-- Config system
+	--------------------------------------------------------------
+	local Flags, FlagOrder = {}, {}
+
+	local function register(tabTitle, o, name, getFn, setFn, suffix)
+		if o and o.NoSave then return nil end
+		local base = (o and o.Flag) and tostring(o.Flag) or (tostring(tabTitle) .. "/" .. tostring(name))
+		base = base .. (suffix or "")
+		local key, n = base, 1
+		while Flags[key] do
+			n += 1
+			key = base .. " #" .. n
+		end
+		Flags[key] = { get = getFn, set = setFn }
+		table.insert(FlagOrder, key)
+		return key
+	end
+
+	local function cleanName(n)
+		n = tostring(n or ""):gsub("[^%w%-_ ]", "")
+		n = n:gsub("^%s+", "")
+		return (n:gsub("%s+$", ""))
+	end
+
+	local folderName = cleanName(opts.ConfigFolder or opts.Title or "")
+	if folderName == "" then folderName = "Hub" end
+	local CONFIG_ROOT = "SimpleUI"
+	local CONFIG_DIR = CONFIG_ROOT .. "/" .. folderName
+	local AUTO_FILE = CONFIG_DIR .. "/_autoload.txt"
+
+	local function hasFS()
+		return type(writefile) == "function" and type(readfile) == "function"
+	end
+
+	local function ensureDir()
+		pcall(function()
+			if makefolder and isfolder then
+				if not isfolder(CONFIG_ROOT) then makefolder(CONFIG_ROOT) end
+				if not isfolder(CONFIG_DIR) then makefolder(CONFIG_DIR) end
+			end
+		end)
+	end
+
+	local function cfgPath(name)
+		return CONFIG_DIR .. "/" .. name .. ".json"
+	end
+
+	function Window:GetConfig()
+		local flags = {}
+		for _, key in ipairs(FlagOrder) do
+			local f = Flags[key]
+			local ok, v = pcall(f.get)
+			if ok and v ~= nil then
+				if typeof(v) == "Color3" then v = { __color = toHex(v) } end
+				flags[key] = v
+			end
+		end
+		return { Version = 1, Flags = flags }
+	end
+
+	function Window:ApplyConfig(data)
+		if type(data) ~= "table" or type(data.Flags) ~= "table" then return false end
+		for _, key in ipairs(FlagOrder) do
+			local v = data.Flags[key]
+			if v ~= nil then
+				if type(v) == "table" and v.__color then v = fromHex(v.__color) end
+				if v ~= nil then
+					local ok, err = pcall(Flags[key].set, v)
+					if not ok then warn("[SimpleUI] Config '" .. key .. "': " .. tostring(err)) end
+				end
+			end
+		end
+		return true
+	end
+
+	function Window:SaveConfig(name)
+		name = cleanName(name)
+		if name == "" then return false, "empty name" end
+		if not hasFS() then return false, "your executor has no file support" end
+		ensureDir()
+		local okEnc, json = pcall(function() return HttpService:JSONEncode(Window:GetConfig()) end)
+		if not okEnc then return false, tostring(json) end
+		local okW, err = pcall(writefile, cfgPath(name), json)
+		if not okW then return false, tostring(err) end
+		return true
+	end
+
+	function Window:LoadConfig(name)
+		name = cleanName(name)
+		if name == "" then return false, "empty name" end
+		if not hasFS() then return false, "your executor has no file support" end
+		local path = cfgPath(name)
+		local exists = true
+		if type(isfile) == "function" then exists = isfile(path) end
+		if not exists then return false, "config not found" end
+		local okR, raw = pcall(readfile, path)
+		if not okR then return false, tostring(raw) end
+		local okD, data = pcall(function() return HttpService:JSONDecode(raw) end)
+		if not okD then return false, "the config file is corrupted" end
+		return Window:ApplyConfig(data)
+	end
+
+	function Window:DeleteConfig(name)
+		name = cleanName(name)
+		if name == "" then return false, "empty name" end
+		if type(delfile) ~= "function" then return false, "your executor can't delete files" end
+		local ok, err = pcall(delfile, cfgPath(name))
+		if not ok then return false, tostring(err) end
+		return true
+	end
+
+	function Window:ListConfigs()
+		local list = {}
+		if type(listfiles) ~= "function" then return list end
+		pcall(function()
+			if isfolder and not isfolder(CONFIG_DIR) then return end
+			for _, path in ipairs(listfiles(CONFIG_DIR)) do
+				local nm = tostring(path):match("([^/\\]+)%.json$")
+				if nm then table.insert(list, nm) end
+			end
+		end)
+		table.sort(list)
+		return list
+	end
+
+	function Window:GetAutoLoad()
+		if not hasFS() then return nil end
+		local name
+		pcall(function()
+			if type(isfile) == "function" and isfile(AUTO_FILE) then
+				name = cleanName(readfile(AUTO_FILE))
+			end
+		end)
+		if name == "" then return nil end
+		return name
+	end
+
+	function Window:SetAutoLoad(name)
+		if not hasFS() then return false, "your executor has no file support" end
+		if name == nil then
+			pcall(function()
+				if type(isfile) == "function" and isfile(AUTO_FILE) and type(delfile) == "function" then
+					delfile(AUTO_FILE)
+				end
+			end)
+			return true
+		end
+		ensureDir()
+		local ok, err = pcall(writefile, AUTO_FILE, cleanName(name))
+		if not ok then return false, tostring(err) end
+		return true
+	end
+
+	local autoDone = false
+	function Window:AutoLoad()
+		if autoDone then return end
+		autoDone = true
+		if not gui.Parent then return end
+		local name = Window:GetAutoLoad()
+		if not name then return end
+		local ok, err = Window:LoadConfig(name)
+		Library:Notify({
+			Title = "Config",
+			Content = ok and ("Loaded '" .. name .. "'.") or ("Could not load '" .. name .. "': " .. tostring(err)),
+			Type = ok and "success" or "error",
+			Duration = 3,
+		})
+	end
+	task.delay(1.5, function() Window:AutoLoad() end)	--------------------------------------------------------------
 	-- Tabs
-	-- NOTE: internal fields are named _btn / _page on purpose.
-	-- (Tab.Button would collide with the Tab:Button() method.)
 	--------------------------------------------------------------
 	local function setActive(t, active, instant)
 		local bgT = active and 0 or 1
@@ -2809,7 +3224,6 @@ function Library:CreateWindow(opts)
 			tween(t._btn, 0.25, { BackgroundTransparency = bgT })
 			tween(t._bar, 0.3, { Size = barSize }, Enum.EasingStyle.Back)
 			if t._pinned then
-				-- the gear turns when the Settings tab is opened / closed
 				tween(t._ic, 0.6, { Rotation = active and 180 or 0 }, Enum.EasingStyle.Quint)
 			end
 		end
@@ -2829,7 +3243,6 @@ function Library:CreateWindow(opts)
 			return
 		end
 
-		-- exit animation for the old page, then enter animation for the new one
 		if previous then
 			local old = previous._page
 			tween(old, 0.2, { GroupTransparency = 1, Position = UDim2.fromOffset(0, -10) })
@@ -2854,14 +3267,13 @@ function Library:CreateWindow(opts)
 	function Window:Tab(topts)
 		topts = topts or {}
 		local Tab = {}
+		local tabTitle = tostring(topts.Title or "Tab")
 
-		-- slot clips the button so it can slide in from the left
-		-- _Pinned (internal): the built-in Settings tab lives in the sidebar footer, under every tab
 		local pinned = topts._Pinned == true
 		local slot = new("Frame", {
 			BackgroundTransparency = 1,
-			Size = pinned and UDim2.new(1, -16, 0, 34) or UDim2.new(1, 0, 0, 34),
-			Position = pinned and UDim2.new(0, 8, 1, -42) or UDim2.new(),
+			Size = pinned and UDim2.new(1, -24, 0, 34) or UDim2.new(1, 0, 0, 34),
+			Position = pinned and UDim2.new(0, 12, 1, -(FOOTER - 2)) or UDim2.new(),
 			ClipsDescendants = true,
 			LayoutOrder = #Window.Tabs + 1,
 		}, pinned and sidebar or tabList)
@@ -2875,7 +3287,6 @@ function Library:CreateWindow(opts)
 		}, slot)
 		corner(btn, 8)
 
-		-- accent bar shown on the active tab
 		local bar = new("Frame", {
 			BackgroundColor3 = accent,
 			BorderSizePixel = 0,
@@ -2886,14 +3297,14 @@ function Library:CreateWindow(opts)
 		corner(bar, 2)
 
 		local ic = createIcon(btn, topts.Icon, 18, Theme.Text)
-		ic.AnchorPoint = Vector2.new(0.5, 0.5) -- so the icon can turn around its center
+		ic.AnchorPoint = Vector2.new(0.5, 0.5)
 		ic.Position = UDim2.new(0, 19, 0.5, 0)
 
 		new("TextLabel", {
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(36, 0),
 			Size = UDim2.new(1, -42, 1, 0),
-			Text = tostring(topts.Title or "Tab"),
+			Text = tabTitle,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Font = Enum.Font.GothamMedium,
 			TextSize = 13,
@@ -2901,7 +3312,6 @@ function Library:CreateWindow(opts)
 			TextTruncate = Enum.TextTruncate.AtEnd,
 		}, btn)
 
-		-- hover / press effects: the icon nudges, the button dips when pressed
 		local pressScale = new("UIScale", { Scale = 1 }, btn)
 		btn.MouseEnter:Connect(function()
 			if Window.Current ~= Tab then tween(btn, 0.2, { BackgroundTransparency = 0.6 }) end
@@ -2916,7 +3326,6 @@ function Library:CreateWindow(opts)
 		btn.MouseButton1Down:Connect(function() tween(pressScale, 0.08, { Scale = 0.95 }) end)
 		btn.MouseButton1Up:Connect(function() tween(pressScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back) end)
 
-		-- wrapper (CanvasGroup) is what fades/slides; `page` is the scrolling content
 		local wrap = new("CanvasGroup", {
 			BackgroundTransparency = 1,
 			Size = UDim2.fromScale(1, 1),
@@ -2951,21 +3360,36 @@ function Library:CreateWindow(opts)
 		if not pinned and #Window.Tabs == 1 then selectTab(Tab, true) end
 
 		-- Shared card for Button / Toggle
-		local function makeCard(o)
+		-- spec adds the small "pin" button on the left of the card:
+		--   press it  -> floating button + panel (color, size box, draggable)
+		--   press again -> floating button removed
+		-- spec = { IsToggle = bool, Press = fn, GetState = fn, Listeners = {} }
+		local function makeCard(o, spec)
 			local hasDesc = o.Desc and o.Desc ~= ""
+			local headerH = hasDesc and 52 or 38
+			local floatable = spec ~= nil
+			local tx = floatable and 40 or 12
+
+			local holder = new("Frame", {
+				Name = "SUI_Holder",
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, headerH),
+			}, page)
+
 			local card = new("TextButton", {
+				Name = "SUI_Card",
 				BackgroundColor3 = Theme.Surface,
-				Size = UDim2.new(1, 0, 0, hasDesc and 52 or 38),
+				Size = UDim2.new(1, 0, 0, headerH),
 				Text = "",
 				AutoButtonColor = false,
-			}, page)
+			}, holder)
 			corner(card, 8)
 			stroke(card, Theme.Stroke)
 
 			new("TextLabel", {
 				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(12, hasDesc and 8 or 0),
-				Size = UDim2.new(1, -70, 0, hasDesc and 18 or 38),
+				Position = UDim2.fromOffset(tx, hasDesc and 8 or 0),
+				Size = UDim2.new(1, -(tx + 58), 0, hasDesc and 18 or headerH),
 				Text = tostring(o.Title or "Item"),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				Font = Enum.Font.GothamMedium,
@@ -2977,8 +3401,8 @@ function Library:CreateWindow(opts)
 			if hasDesc then
 				new("TextLabel", {
 					BackgroundTransparency = 1,
-					Position = UDim2.fromOffset(12, 27),
-					Size = UDim2.new(1, -70, 0, 16),
+					Position = UDim2.fromOffset(tx, 27),
+					Size = UDim2.new(1, -(tx + 58), 0, 16),
 					Text = tostring(o.Desc),
 					TextXAlignment = Enum.TextXAlignment.Left,
 					Font = Enum.Font.Gotham,
@@ -2988,7 +3412,6 @@ function Library:CreateWindow(opts)
 				}, card)
 			end
 
-			-- hover + press animation
 			local cardScale = new("UIScale", { Scale = 1 }, card)
 			card.MouseEnter:Connect(function() tween(card, 0.1, { BackgroundColor3 = Theme.SurfaceHover }) end)
 			card.MouseLeave:Connect(function()
@@ -2997,13 +3420,420 @@ function Library:CreateWindow(opts)
 			end)
 			card.MouseButton1Down:Connect(function() tween(cardScale, 0.08, { Scale = 0.975 }) end)
 			card.MouseButton1Up:Connect(function() tween(cardScale, 0.12, { Scale = 1 }, Enum.EasingStyle.Back) end)
+
+			if not floatable then return card end
+
+			----------------------------------------------------------
+			-- Floating button controls
+			----------------------------------------------------------
+			local PANEL_H, SV_H = 176, 90
+			local fcfg = { Color = Theme.Accent, Size = 56, Draggable = true, X = nil, Y = nil }
+			local floatObj = nil
+			local panelOpen = false
+			local ph, ps, pv = fcfg.Color:ToHSV()
+
+			local sb = new("TextButton", {
+				BackgroundColor3 = Theme.Background,
+				AnchorPoint = Vector2.new(0, 0.5),
+				Position = UDim2.new(0, 8, 0, headerH / 2),
+				Size = UDim2.fromOffset(24, 24),
+				Text = "",
+				AutoButtonColor = false,
+			}, card)
+			corner(sb, 7)
+			stroke(sb, Theme.Stroke)
+			local sbIcon = createIcon(sb, "pin", 13, Theme.SubText, "◈")
+			sbIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+			sbIcon.Position = UDim2.fromScale(0.5, 0.5)
+
+			local function paintIcon(c)
+				if sbIcon:IsA("ImageLabel") then sbIcon.ImageColor3 = c else sbIcon.TextColor3 = c end
+			end
+
+			sb.MouseEnter:Connect(function()
+				if not panelOpen then tween(sb, 0.1, { BackgroundColor3 = Theme.SurfaceHover }) end
+			end)
+			sb.MouseLeave:Connect(function()
+				if not panelOpen then tween(sb, 0.1, { BackgroundColor3 = Theme.Background }) end
+			end)
+
+			local panel = new("Frame", {
+				Name = "SUI_FloatPanel",
+				BackgroundColor3 = Theme.Surface,
+				Position = UDim2.fromOffset(0, headerH + 4),
+				Size = UDim2.new(1, 0, 0, 0),
+				ClipsDescendants = true,
+				Visible = false,
+			}, holder)
+			corner(panel, 8)
+			stroke(panel, Theme.Stroke)
+
+			local svFrame = new("Frame", {
+				BackgroundColor3 = Color3.fromHSV(ph, 1, 1),
+				Position = UDim2.fromOffset(12, 8),
+				Size = UDim2.new(1, -52, 0, SV_H),
+				BorderSizePixel = 0,
+			}, panel)
+			corner(svFrame, 6)
+
+			local whiteOverlay = new("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				Size = UDim2.fromScale(1, 1),
+				BorderSizePixel = 0,
+			}, svFrame)
+			corner(whiteOverlay, 6)
+			new("UIGradient", {
+				Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 0),
+					NumberSequenceKeypoint.new(1, 1),
+				}),
+			}, whiteOverlay)
+
+			local blackOverlay = new("Frame", {
+				BackgroundColor3 = Color3.new(0, 0, 0),
+				Size = UDim2.fromScale(1, 1),
+				BorderSizePixel = 0,
+			}, svFrame)
+			corner(blackOverlay, 6)
+			new("UIGradient", {
+				Rotation = 90,
+				Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 1),
+					NumberSequenceKeypoint.new(1, 0),
+				}),
+			}, blackOverlay)
+
+			local svKnob = new("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(ps, 1 - pv),
+				Size = UDim2.fromOffset(12, 12),
+			}, svFrame)
+			corner(svKnob, 6)
+			stroke(svKnob, Color3.new(0, 0, 0), 1.5)
+
+			local hueBar = new("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				Position = UDim2.new(1, -32, 0, 8),
+				Size = UDim2.fromOffset(18, SV_H),
+				BorderSizePixel = 0,
+			}, panel)
+			corner(hueBar, 6)
+			new("UIGradient", {
+				Rotation = 90,
+				Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 1, 1)),
+					ColorSequenceKeypoint.new(1 / 6, Color3.fromHSV(1 / 6, 1, 1)),
+					ColorSequenceKeypoint.new(2 / 6, Color3.fromHSV(2 / 6, 1, 1)),
+					ColorSequenceKeypoint.new(3 / 6, Color3.fromHSV(3 / 6, 1, 1)),
+					ColorSequenceKeypoint.new(4 / 6, Color3.fromHSV(4 / 6, 1, 1)),
+					ColorSequenceKeypoint.new(5 / 6, Color3.fromHSV(5 / 6, 1, 1)),
+					ColorSequenceKeypoint.new(1, Color3.fromHSV(0, 1, 1)),
+				}),
+			}, hueBar)
+
+			local hueKnob = new("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, ph),
+				Size = UDim2.fromOffset(22, 8),
+			}, hueBar)
+			corner(hueKnob, 4)
+			stroke(hueKnob, Color3.new(0, 0, 0), 1.5)
+
+			local rowY = 8 + SV_H + 8
+			local hexBox = new("TextBox", {
+				BackgroundColor3 = Theme.Background,
+				Position = UDim2.fromOffset(12, rowY),
+				Size = UDim2.fromOffset(84, 26),
+				Text = "",
+				PlaceholderText = "#FFFFFF",
+				PlaceholderColor3 = Theme.SubText,
+				TextColor3 = Theme.Text,
+				Font = Enum.Font.Gotham,
+				TextSize = 12,
+				ClearTextOnFocus = false,
+			}, panel)
+			corner(hexBox, 6)
+			local hexStroke = stroke(hexBox, Theme.Stroke)
+
+			new("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(108, rowY),
+				Size = UDim2.fromOffset(60, 26),
+				Text = "Button size",
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Font = Enum.Font.GothamMedium,
+				TextSize = 12,
+				TextColor3 = Theme.SubText,
+			}, panel)
+
+			local sizeBox = new("TextBox", {
+				BackgroundColor3 = Theme.Background,
+				Position = UDim2.fromOffset(172, rowY),
+				Size = UDim2.fromOffset(54, 26),
+				Text = tostring(fcfg.Size),
+				PlaceholderText = "56",
+				PlaceholderColor3 = Theme.SubText,
+				TextColor3 = Theme.Text,
+				Font = Enum.Font.Gotham,
+				TextSize = 12,
+				ClearTextOnFocus = false,
+			}, panel)
+			corner(sizeBox, 6)
+			local sizeStroke = stroke(sizeBox, Theme.Stroke)
+
+			local dragY = rowY + 26 + 8
+			local dragRow = new("TextButton", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(0, dragY),
+				Size = UDim2.new(1, 0, 0, 26),
+				Text = "",
+				AutoButtonColor = false,
+			}, panel)
+
+			new("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(12, 0),
+				Size = UDim2.new(1, -70, 1, 0),
+				Text = "Draggable (move the floating button)",
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Font = Enum.Font.GothamMedium,
+				TextSize = 12,
+				TextColor3 = Theme.Text,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, dragRow)
+
+			local dTrack = new("Frame", {
+				BackgroundColor3 = Theme.Accent,
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -12, 0.5, 0),
+				Size = UDim2.fromOffset(38, 20),
+			}, dragRow)
+			corner(dTrack, 10)
+			local dKnob = new("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				Position = UDim2.fromOffset(21, 3),
+				Size = UDim2.fromOffset(14, 14),
+			}, dTrack)
+			corner(dKnob, 7)
+
+			local function paintDrag(instant)
+				local c = fcfg.Draggable and Theme.Accent or Theme.Stroke
+				local p = fcfg.Draggable and UDim2.fromOffset(21, 3) or UDim2.fromOffset(3, 3)
+				if instant then
+					dTrack.BackgroundColor3 = c
+					dKnob.Position = p
+				else
+					tween(dTrack, 0.12, { BackgroundColor3 = c })
+					tween(dKnob, 0.12, { Position = p })
+				end
+			end
+
+			local function renderPanel()
+				local c = Color3.fromHSV(ph, ps, pv)
+				svFrame.BackgroundColor3 = Color3.fromHSV(ph, 1, 1)
+				svKnob.Position = UDim2.fromScale(ps, 1 - pv)
+				hueKnob.Position = UDim2.fromScale(0.5, ph)
+				hexBox.Text = toHex(c)
+			end
+
+			local function fireColor()
+				fcfg.Color = Color3.fromHSV(ph, ps, pv)
+				if floatObj then floatObj:SetColor(fcfg.Color) end
+			end
+
+			local function applySV(pos)
+				local abs, sz = svFrame.AbsolutePosition, svFrame.AbsoluteSize
+				if sz.X <= 0 or sz.Y <= 0 then return end
+				ps = math.clamp((pos.X - abs.X) / sz.X, 0, 1)
+				pv = 1 - math.clamp((pos.Y - abs.Y) / sz.Y, 0, 1)
+				renderPanel()
+				fireColor()
+			end
+
+			local function applyHue(pos)
+				local abs, sz = hueBar.AbsolutePosition, hueBar.AbsoluteSize
+				if sz.Y <= 0 then return end
+				ph = math.clamp((pos.Y - abs.Y) / sz.Y, 0, 1)
+				renderPanel()
+				fireColor()
+			end
+
+			local dragging = nil
+			local function bind(obj, mode, apply)
+				obj.InputBegan:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						dragging = mode
+						page.ScrollingEnabled = false
+						apply(input.Position)
+						input.Changed:Connect(function()
+							if input.UserInputState == Enum.UserInputState.End then
+								if dragging == mode then dragging = nil end
+								page.ScrollingEnabled = true
+							end
+						end)
+					end
+				end)
+			end
+			bind(svFrame, "sv", applySV)
+			bind(hueBar, "hue", applyHue)
+
+			table.insert(State.Conns, UserInputService.InputChanged:Connect(function(input)
+				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					if dragging == "sv" then applySV(input.Position) else applyHue(input.Position) end
+				end
+			end))
+
+			hexBox.Focused:Connect(function() tween(hexStroke, 0.15, { Color = Theme.Accent }) end)
+			hexBox.FocusLost:Connect(function()
+				tween(hexStroke, 0.15, { Color = Theme.Stroke })
+				local c = fromHex(hexBox.Text)
+				if c then
+					ph, ps, pv = c:ToHSV()
+					renderPanel()
+					fireColor()
+				else
+					renderPanel()
+				end
+			end)
+
+			sizeBox:GetPropertyChangedSignal("Text"):Connect(function()
+				local clean = sizeBox.Text:gsub("[^%d]", "")
+				if clean ~= sizeBox.Text then sizeBox.Text = clean end
+			end)
+			sizeBox.Focused:Connect(function() tween(sizeStroke, 0.15, { Color = Theme.Accent }) end)
+			sizeBox.FocusLost:Connect(function()
+				tween(sizeStroke, 0.15, { Color = Theme.Stroke })
+				local n = tonumber(sizeBox.Text)
+				if n then fcfg.Size = math.clamp(math.floor(n + 0.5), 28, 140) end
+				sizeBox.Text = tostring(fcfg.Size)
+				if floatObj then floatObj:SetSize(fcfg.Size) end
+			end)
+
+			dragRow.Activated:Connect(function()
+				fcfg.Draggable = not fcfg.Draggable
+				paintDrag(false)
+				if floatObj then floatObj:SetDraggable(fcfg.Draggable) end
+			end)
+
+			renderPanel()
+			paintDrag(true)
+
+			local function setPanel(open)
+				panelOpen = open
+				if open then
+					panel.Visible = true
+					tween(panel, 0.22, { Size = UDim2.new(1, 0, 0, PANEL_H) }, Enum.EasingStyle.Quint)
+					tween(holder, 0.22, { Size = UDim2.new(1, 0, 0, headerH + 4 + PANEL_H) }, Enum.EasingStyle.Quint)
+				else
+					tween(panel, 0.2, { Size = UDim2.new(1, 0, 0, 0) })
+					tween(holder, 0.2, { Size = UDim2.new(1, 0, 0, headerH) })
+					task.delay(0.22, function()
+						if not panelOpen then panel.Visible = false end
+					end)
+				end
+				tween(sb, 0.15, { BackgroundColor3 = open and Theme.Accent or Theme.Background })
+				paintIcon(open and Color3.new(1, 1, 1) or Theme.SubText)
+			end
+
+			local function closeFloat()
+				if floatObj then
+					floatObj:Destroy()
+					floatObj = nil
+				end
+				if panelOpen then setPanel(false) end
+			end
+
+			local function openFloat()
+				if floatObj then return end
+				if not fcfg.X or not fcfg.Y then
+					floatSpawnCount += 1
+					local k = (floatSpawnCount - 1) % 6
+					fcfg.X, fcfg.Y = 0.12 + 0.07 * k, 0.3 + 0.07 * k
+				end
+				floatObj = createFloatButton({
+					Title = o.Title,
+					Color = fcfg.Color,
+					Size = fcfg.Size,
+					Draggable = fcfg.Draggable,
+					X = fcfg.X,
+					Y = fcfg.Y,
+					IsToggle = spec.IsToggle == true,
+					State = spec.GetState and spec.GetState() or false,
+					OnPress = spec.Press,
+					OnMoved = function(x, y) fcfg.X, fcfg.Y = x, y end,
+				})
+				if not panelOpen then setPanel(true) end
+			end
+
+			sb.Activated:Connect(function()
+				if floatObj then closeFloat() else openFloat() end
+			end)
+
+			if spec.Listeners then
+				table.insert(spec.Listeners, function(st)
+					if floatObj then floatObj:SetState(st) end
+				end)
+			end
+
+			table.insert(State.Conns, { Disconnect = function()
+				if floatObj then
+					floatObj:Destroy()
+					floatObj = nil
+				end
+			end })
+
+			register(tabTitle, o, tostring(o.Title or "Item"),
+				function()
+					local x, y = fcfg.X, fcfg.Y
+					if floatObj then x, y = floatObj:GetPosition() end
+					return {
+						Open = floatObj ~= nil,
+						Color = toHex(fcfg.Color),
+						Size = fcfg.Size,
+						Draggable = fcfg.Draggable,
+						X = x,
+						Y = y,
+					}
+				end,
+				function(t)
+					if type(t) ~= "table" then return end
+					local c = fromHex(t.Color)
+					if c then
+						fcfg.Color = c
+						ph, ps, pv = c:ToHSV()
+					end
+					if tonumber(t.Size) then fcfg.Size = math.clamp(math.floor(t.Size + 0.5), 28, 140) end
+					if t.Draggable ~= nil then fcfg.Draggable = t.Draggable == true end
+					if tonumber(t.X) and tonumber(t.Y) then fcfg.X, fcfg.Y = t.X, t.Y end
+					renderPanel()
+					paintDrag(true)
+					sizeBox.Text = tostring(fcfg.Size)
+					if floatObj then
+						floatObj:SetColor(fcfg.Color)
+						floatObj:SetSize(fcfg.Size)
+						floatObj:SetDraggable(fcfg.Draggable)
+						if fcfg.X and fcfg.Y then floatObj:SetPosition(fcfg.X, fcfg.Y) end
+					end
+					if t.Open == true then
+						openFloat()
+					else
+						closeFloat()
+					end
+				end,
+				" [Float]")
+
 			return card
 		end
 
 		-- Button
 		function Tab:Button(o)
 			o = o or {}
-			local card = makeCard(o)
+			local card = makeCard(o, (not o.NoFloat) and {
+				IsToggle = false,
+				Press = function() safeCall(o.Callback) end,
+			} or nil)
 			new("TextLabel", {
 				BackgroundTransparency = 1,
 				AnchorPoint = Vector2.new(1, 0.5),
@@ -3022,7 +3852,15 @@ function Library:CreateWindow(opts)
 		function Tab:Toggle(o)
 			o = o or {}
 			local state = o.Default == true
-			local card = makeCard(o)
+			local listeners = {}
+			local apply
+
+			local card = makeCard(o, (not o.NoFloat) and {
+				IsToggle = true,
+				Press = function() apply(not state) end,
+				GetState = function() return state end,
+				Listeners = listeners,
+			} or nil)
 
 			local track = new("Frame", {
 				BackgroundColor3 = state and accent or Theme.Stroke,
@@ -3040,10 +3878,11 @@ function Library:CreateWindow(opts)
 			corner(knob, 7)
 
 			local Toggle = {}
-			local function apply(v, silent)
+			apply = function(v, silent)
 				state = v
 				tween(track, 0.12, { BackgroundColor3 = state and accent or Theme.Stroke })
 				tween(knob, 0.12, { Position = state and UDim2.fromOffset(21, 3) or UDim2.fromOffset(3, 3) })
+				for _, f in ipairs(listeners) do pcall(f, state) end
 				if not silent then safeCall(o.Callback, state) end
 			end
 
@@ -3052,12 +3891,14 @@ function Library:CreateWindow(opts)
 
 			card.Activated:Connect(function() apply(not state) end)
 			if state then safeCall(o.Callback, true) end
+
+			register(tabTitle, o, tostring(o.Title or "Toggle"),
+				function() return state end,
+				function(v) apply(v == true) end)
 			return Toggle
 		end
 
 		-- Dropdown: Tab:Dropdown({ Title, Desc, Options, Default, Multi, Callback })
-		-- The list opens inside the window (the card expands smoothly).
-		-- Single: Callback(value)   |   Multi = true: Callback({ values })
 		function Tab:Dropdown(o)
 			o = o or {}
 			local options = o.Options or o.Values or {}
@@ -3143,9 +3984,8 @@ function Library:CreateWindow(opts)
 			}, container)
 			new("UIListLayout", { Padding = UDim.new(0, GAP), SortOrder = Enum.SortOrder.LayoutOrder }, panel)
 
-			-- state
-			local selected = {} -- multi: set of names
-			local single = nil  -- single: chosen name
+			local selected = {}
+			local single = nil
 			if multi then
 				if type(o.Default) == "table" then
 					for _, v in ipairs(o.Default) do selected[tostring(v)] = true end
@@ -3303,11 +4143,14 @@ function Library:CreateWindow(opts)
 			end
 			function Dropdown:Open() setOpen(true) end
 			function Dropdown:Close() setOpen(false) end
+
+			register(tabTitle, o, tostring(o.Title or "Dropdown"),
+				function() return getValue() end,
+				function(v) if v ~= nil then Dropdown:Set(v) end end)
 			return Dropdown
 		end
 
-		-- Input (text box): Tab:Input({ Title, Desc, Placeholder, Default, Numeric, ClearOnFocus, Callback })
-		-- Callback(text, enterPressed) fires when the box loses focus (Enter or tapping away).
+		-- Input: Tab:Input({ Title, Desc, Placeholder, Default, Numeric, ClearOnFocus, Callback })
 		function Tab:Input(o)
 			o = o or {}
 			local hasDesc = o.Desc and o.Desc ~= ""
@@ -3368,7 +4211,6 @@ function Library:CreateWindow(opts)
 				ClearTextOnFocus = o.ClearOnFocus == true,
 			}, boxFrame)
 
-			-- focus animation: the box grows a little and the border lights up
 			box.Focused:Connect(function()
 				tween(boxStroke, 0.15, { Color = accent })
 				tween(boxFrame, 0.18, { Size = UDim2.fromOffset(165, 28) }, Enum.EasingStyle.Quint)
@@ -3387,14 +4229,22 @@ function Library:CreateWindow(opts)
 			end
 
 			local Input = {}
-			function Input:Set(t) box.Text = tostring(t) end
+			-- Set(text, true) also runs the Callback
+			function Input:Set(t, fireCallback)
+				box.Text = tostring(t)
+				if fireCallback then safeCall(o.Callback, box.Text, false) end
+			end
 			function Input:Get() return box.Text end
+
+			register(tabTitle, o, tostring(o.Title or "Input"),
+				function() return box.Text end,
+				function(v) Input:Set(v, true) end)
 			return Input
 		end
 
 		function Tab:Textbox(o) return Tab:Input(o) end
 
-		-- Section: Tab:Section("Title")  - a small heading that groups the elements below it
+		-- Section: Tab:Section("Title")
 		function Tab:Section(title)
 			if type(title) == "table" then title = title.Title end
 			local frame = new("Frame", {
@@ -3416,8 +4266,6 @@ function Library:CreateWindow(opts)
 		end
 
 		-- ColorPicker: Tab:ColorPicker({ Title, Desc, Default (Color3), Callback })
-		-- Click the card: the picker opens inside the window (saturation/value square, hue bar, hex box).
-		-- Callback(Color3) fires while you drag. Methods: :Get() :Set(color) :Open() :Close()
 		function Tab:ColorPicker(o)
 			o = o or {}
 			local hasDesc = o.Desc and o.Desc ~= ""
@@ -3489,7 +4337,6 @@ function Library:CreateWindow(opts)
 				TextColor3 = Theme.SubText,
 			}, header)
 
-			-- saturation / value square (hue color + white->clear + clear->black overlays)
 			local svFrame = new("Frame", {
 				BackgroundColor3 = Color3.fromHSV(h, 1, 1),
 				Position = UDim2.fromOffset(12, headerH + 8),
@@ -3534,7 +4381,6 @@ function Library:CreateWindow(opts)
 			corner(svKnob, 6)
 			stroke(svKnob, Color3.new(0, 0, 0), 1.5)
 
-			-- hue bar
 			local hueBar = new("Frame", {
 				BackgroundColor3 = Color3.new(1, 1, 1),
 				Position = UDim2.new(1, -32, 0, headerH + 8),
@@ -3564,7 +4410,6 @@ function Library:CreateWindow(opts)
 			corner(hueKnob, 4)
 			stroke(hueKnob, Color3.new(0, 0, 0), 1.5)
 
-			-- hex box + rgb readout
 			local hexY = headerH + 8 + SV_H + 8
 			local hexBox = new("TextBox", {
 				BackgroundColor3 = Theme.Background,
@@ -3626,7 +4471,6 @@ function Library:CreateWindow(opts)
 				fire()
 			end
 
-			-- dragging (page scrolling is paused while you drag)
 			local dragging = nil
 			local function bind(obj, mode, apply)
 				obj.InputBegan:Connect(function(input)
@@ -3652,7 +4496,6 @@ function Library:CreateWindow(opts)
 				end
 			end))
 
-			-- hex input
 			hexBox.Focused:Connect(function() tween(hexStroke, 0.15, { Color = accent }) end)
 			hexBox.FocusLost:Connect(function()
 				tween(hexStroke, 0.15, { Color = Theme.Stroke })
@@ -3663,11 +4506,10 @@ function Library:CreateWindow(opts)
 					render()
 					fire()
 				else
-					render() -- invalid text: restore the real value
+					render()
 				end
 			end)
 
-			-- open / close
 			local open = false
 			local function setOpen(state)
 				open = state
@@ -3690,6 +4532,10 @@ function Library:CreateWindow(opts)
 			end
 			function Picker:Open() setOpen(true) end
 			function Picker:Close() setOpen(false) end
+
+			register(tabTitle, o, tostring(o.Title or "Color"),
+				function() return currentColor() end,
+				function(c) Picker:Set(c) end)
 			return Picker
 		end
 
@@ -3749,7 +4595,6 @@ function Library:CreateWindow(opts)
 				TextColor3 = Theme.SubText,
 			}, card)
 
-			-- hit area (bigger than the visible track so it's easy to grab on mobile)
 			local hit = new("TextButton", {
 				BackgroundTransparency = 1,
 				Position = UDim2.new(0, 12, 1, -24),
@@ -3782,10 +4627,10 @@ function Library:CreateWindow(opts)
 			}, track)
 			corner(knob, 7)
 
-			local function snap(v)
-				v = math.floor((v - min) / step + 0.5) * step + min
-				v = math.clamp(v, min, max)
-				return math.floor(v * 1e6 + 0.5) / 1e6 -- remove float noise
+			local function snap(val)
+				val = math.floor((val - min) / step + 0.5) * step + min
+				val = math.clamp(val, min, max)
+				return math.floor(val * 1e6 + 0.5) / 1e6
 			end
 
 			local value = snap(o.Default or min)
@@ -3798,10 +4643,10 @@ function Library:CreateWindow(opts)
 				valueLabel.Text = tostring(value) .. suffix
 			end
 
-			local function setValue(v, silent)
-				v = snap(v)
-				if v == value then return end
-				value = v
+			local function setValue(val, silent)
+				val = snap(val)
+				if val == value then return end
+				value = val
 				render()
 				if not silent then safeCall(o.Callback, value) end
 			end
@@ -3817,7 +4662,7 @@ function Library:CreateWindow(opts)
 			hit.InputBegan:Connect(function(input)
 				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = true
-					page.ScrollingEnabled = false -- don't scroll the page while sliding
+					page.ScrollingEnabled = false
 					updateFromX(input.Position.X)
 					input.Changed:Connect(function()
 						if input.UserInputState == Enum.UserInputState.End then
@@ -3836,8 +4681,12 @@ function Library:CreateWindow(opts)
 
 			render()
 
-			function Slider:Set(v) setValue(v) end
+			function Slider:Set(val) setValue(val) end
 			function Slider:Get() return value end
+
+			register(tabTitle, o, tostring(o.Title or "Slider"),
+				function() return value end,
+				function(val) if tonumber(val) then setValue(tonumber(val)) end end)
 			return Slider
 		end
 
@@ -3912,9 +4761,9 @@ function Library:CreateWindow(opts)
 			}, content)
 			new("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, content)
 
-			local titleLabel
+			local noteTitle
 			if o.Title and o.Title ~= "" then
-				titleLabel = new("TextLabel", {
+				noteTitle = new("TextLabel", {
 					BackgroundTransparency = 1,
 					Size = UDim2.new(1, 0, 0, 0),
 					AutomaticSize = Enum.AutomaticSize.Y,
@@ -3944,27 +4793,19 @@ function Library:CreateWindow(opts)
 
 			local Note = {}
 			function Note:SetText(t) textLabel.Text = tostring(t) end
-			function Note:SetTitle(t) if titleLabel then titleLabel.Text = tostring(t) end end
+			function Note:SetTitle(t) if noteTitle then noteTitle.Text = tostring(t) end end
 			return Note
 		end
 
 		return Tab
-	end
-
-	--------------------------------------------------------------
-	-- Built-in Settings tab (default system)
-	-- Created automatically with every window. It is pinned to the bottom of
-	-- the sidebar, so it always stays under all the tabs you add.
-	-- It holds the window settings, the open button settings and the
-	-- notification settings. Everything here changes the real UI live.
+	end	--------------------------------------------------------------
+	-- Built-in Settings tab (pinned at the bottom of the sidebar)
 	--------------------------------------------------------------
 	local baseSize = fullSize
 	local ui = { Transparency = 0, SizePct = 100, FontPct = 100, Font = "Gotham" }
 
-	-- keep text styled (font + size) for everything added to the window later
 	table.insert(State.Conns, main.DescendantAdded:Connect(function(d) styleText(d) end))
 
-	-- recolor everything that still has an old theme color
 	local function recolorAll(old)
 		local fills = {
 			{ old.Background, Theme.Background },
@@ -3998,17 +4839,16 @@ function Library:CreateWindow(opts)
 					if t then o.ImageColor3 = t end
 				end
 				if o:IsA("ScrollingFrame") then
-					local s = map(fills, o.ScrollBarImageColor3)
-					if s then o.ScrollBarImageColor3 = s end
+					local sc = map(fills, o.ScrollBarImageColor3)
+					if sc then o.ScrollBarImageColor3 = sc end
 				end
 			elseif o:IsA("UIStroke") then
-				local s = map(fills, o.Color)
-				if s then o.Color = s end
+				local sc = map(fills, o.Color)
+				if sc then o.Color = sc end
 			end
 		end
 	end
 
-	-- window color (background, cards, borders; the text turns dark on light colors)
 	local function setColor(c)
 		if typeof(c) ~= "Color3" then return end
 		local old = {
@@ -4028,15 +4868,13 @@ function Library:CreateWindow(opts)
 		ui.Color = c
 	end
 
-	-- window transparency: only the window background fades,
-	-- the tabs, buttons and texts stay fully visible
+	-- only the window background fades; the tab frame, tabs, buttons and texts stay solid
 	local function setTransparency(pct)
 		pct = math.clamp(tonumber(pct) or 0, 0, 100)
 		ui.Transparency = pct
 		main.BackgroundTransparency = pct / 100
 	end
 
-	-- window size in percent of the size it was created with
 	local function setSize(pct)
 		pct = math.clamp(tonumber(pct) or 100, 70, 140)
 		ui.SizePct = pct
@@ -4056,7 +4894,6 @@ function Library:CreateWindow(opts)
 		end
 	end
 
-	-- font size of the whole window in percent
 	local function setFontSize(pct)
 		pct = math.clamp(tonumber(pct) or 100, 80, 125)
 		ui.FontPct = pct
@@ -4064,7 +4901,6 @@ function Library:CreateWindow(opts)
 		for _, d in ipairs(main:GetDescendants()) do styleText(d) end
 	end
 
-	-- font family of the whole window
 	local function setFont(name)
 		if not FontMap[name] then return end
 		ui.Font = name
@@ -4072,7 +4908,6 @@ function Library:CreateWindow(opts)
 		for _, d in ipairs(main:GetDescendants()) do styleText(d) end
 	end
 
-	-- open button
 	local function setButtonSize(px)
 		px = math.clamp(tonumber(px) or 56, 28, 120)
 		openBtn.Size = UDim2.fromOffset(px, px)
@@ -4101,7 +4936,6 @@ function Library:CreateWindow(opts)
 		openStroke.Transparency = pct / 100
 	end
 
-	-- { anchor X, anchor Y }
 	local ButtonPositions = {
 		["Left"] = { 0, 0.5 }, ["Right"] = { 1, 0.5 },
 		["Top"] = { 0.5, 0 }, ["Bottom"] = { 0.5, 1 },
@@ -4124,7 +4958,6 @@ function Library:CreateWindow(opts)
 		)
 	end
 
-	-- the tab itself
 	do
 		local Tab = Window:Tab({ Title = "Settings", Icon = "settings", _Pinned = true })
 
@@ -4246,11 +5079,272 @@ function Library:CreateWindow(opts)
 				Library:Notify({ Title = "Preview", Content = "This is how notifications look.", Type = "info", Duration = 3 })
 			end,
 		})
+
+		----------------------------------------------------------
+		-- Config: saves / loads EVERYTHING (settings + all elements + floating buttons)
+		----------------------------------------------------------
+		Tab:Section("Config")
+
+		local cfgName = ""
+		local cfgInput, cfgDropdown
+		local initializing = true
+
+		local function refreshList()
+			if cfgDropdown then cfgDropdown:Refresh(Window:ListConfigs()) end
+		end
+
+		local function currentName()
+			local n = cleanName(cfgName)
+			if n == "" and cfgDropdown then
+				local sel = cfgDropdown:Get()
+				if type(sel) == "string" then n = cleanName(sel) end
+			end
+			return n
+		end
+
+		cfgInput = Tab:Input({
+			Title = "Config Name",
+			Desc = "Type a name for the config",
+			Placeholder = "default",
+			NoSave = true,
+			Callback = function(text) cfgName = text end,
+		})
+
+		cfgDropdown = Tab:Dropdown({
+			Title = "Saved Configs",
+			Desc = "Pick one to load or delete",
+			Options = Window:ListConfigs(),
+			NoSave = true,
+			Callback = function(value)
+				if type(value) == "string" then
+					cfgName = value
+					cfgInput:Set(value)
+				end
+			end,
+		})
+
+		Tab:Button({
+			Title = "Save Config",
+			Desc = "Saves everything: settings, toggles, sliders, floating buttons...",
+			NoSave = true,
+			Callback = function()
+				local n = currentName()
+				if n == "" then n = "default" end
+				local ok, err = Window:SaveConfig(n)
+				Library:Notify({
+					Title = "Config",
+					Content = ok and ("Saved '" .. n .. "'.") or ("Could not save: " .. tostring(err)),
+					Type = ok and "success" or "error",
+					Duration = 3,
+				})
+				if ok then refreshList() end
+			end,
+		})
+
+		Tab:Button({
+			Title = "Load Config",
+			Desc = "Loads the selected / typed config",
+			NoSave = true,
+			Callback = function()
+				local n = currentName()
+				if n == "" then n = "default" end
+				local ok, err = Window:LoadConfig(n)
+				Library:Notify({
+					Title = "Config",
+					Content = ok and ("Loaded '" .. n .. "'.") or ("Could not load: " .. tostring(err)),
+					Type = ok and "success" or "error",
+					Duration = 3,
+				})
+			end,
+		})
+
+		Tab:Button({
+			Title = "Delete Config",
+			Desc = "Deletes the selected / typed config file",
+			NoSave = true,
+			Callback = function()
+				local n = currentName()
+				if n == "" then
+					Library:Notify({ Title = "Config", Content = "Pick or type a config name first.", Type = "warning", Duration = 3 })
+					return
+				end
+				local ok, err = Window:DeleteConfig(n)
+				Library:Notify({
+					Title = "Config",
+					Content = ok and ("Deleted '" .. n .. "'.") or ("Could not delete: " .. tostring(err)),
+					Type = ok and "success" or "error",
+					Duration = 3,
+				})
+				if ok then refreshList() end
+			end,
+		})
+
+		Tab:Button({
+			Title = "Refresh List",
+			NoSave = true,
+			Callback = refreshList,
+		})
+
+		Tab:Toggle({
+			Title = "Auto Load",
+			Desc = "Load the selected config automatically when the script starts",
+			Default = Window:GetAutoLoad() ~= nil,
+			NoSave = true,
+			NoFloat = true,
+			Callback = function(on)
+				if initializing then return end
+				if on then
+					local n = currentName()
+					if n == "" then n = "default" end
+					local ok, err = Window:SetAutoLoad(n)
+					Library:Notify({
+						Title = "Config",
+						Content = ok and ("Auto load: '" .. n .. "'.") or ("Failed: " .. tostring(err)),
+						Type = ok and "success" or "error",
+						Duration = 3,
+					})
+				else
+					Window:SetAutoLoad(nil)
+				end
+			end,
+		})
+		initializing = false
 	end
 
 	return Window
 end
 
+--------------------------------------------------------------------
+-- Example
+--------------------------------------------------------------------
+local passed = Library:KeySystem({
+	Title = "My Hub | Key System",
+	Key = "12345",
+	Link = "https://example.com/get-key",
+})
+if not passed then
+	return Library
+end
+
+local Window = Library:CreateWindow({
+	Title = "My Hub",
+	Description = "Simple and clean",
+	Color = "Matte Black",
+	Size = UDim2.new(0, 550, 0, 356),
+	Icon = "house",
+})
+
+Window:Tag({ Text = "v1.0", Color = "Blue" })
+Window:Tag({ Text = "PRO", Color = "Purple", Rounded = false, Size = UDim2.fromOffset(40, 18) })
+
+Window:OpenButton({
+	Name = "Hub",
+	Size = UDim2.fromOffset(56, 56),
+	Image = "house",
+	Color = "Matte Black",
+	Position = UDim2.new(0, 20, 0.5, -28),
+	Draggable = true,
+})
+
+local Main = Window:Tab({ Title = "Main", Icon = "house" })
+local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
+
+Main:Label("Welcome! This is a label.")
+
+Main:Note({
+	Title = "Dark note",
+	Text = "This is a dark note for general information.",
+	Style = "Dark",
+})
+
+Main:Note({
+	Title = "Blue note",
+	Text = "This is a blue note for important information.",
+	Style = "Blue",
+})
+
+-- Every Button / Toggle has a small pin button on its left:
+-- press it for a floating button, press again to remove it.
+Main:Button({
+	Title = "Test Button",
+	Desc = "Shows a notification when clicked",
+	Callback = function()
+		Library:Notify({
+			Title = "Success",
+			Content = "The button was clicked successfully.",
+			Type = "success",
+			Duration = 4,
+		})
+	end,
+})
+
+Main:Toggle({
+	Title = "Enable Feature",
+	Desc = "Turn this feature on or off",
+	Default = false,
+	Callback = function(state)
+		print("Toggle:", state)
+	end,
+})
+
+Main:Input({
+	Title = "Player Name",
+	Desc = "Type a name and press Enter",
+	Placeholder = "Name...",
+	Callback = function(text)
+		Library:Notify({ Title = "Input", Content = "You typed: " .. text, Type = "info", Duration = 3 })
+	end,
+})
+
+Combat:Section("Combat")
+
+Combat:Dropdown({
+	Title = "Target",
+	Desc = "Pick one option",
+	Options = { "Head", "Torso", "Legs", "Arms" },
+	Default = "Head",
+	Callback = function(value) print("Dropdown:", value) end,
+})
+
+Combat:Dropdown({
+	Title = "Features",
+	Desc = "Pick several options",
+	Options = { "Speed", "Jump", "Fly", "Noclip", "ESP" },
+	Multi = true,
+	Default = { "Speed" },
+	Callback = function(list) print("Multi:", table.concat(list, ", ")) end,
+})
+
+Combat:Slider({
+	Title = "Walk Speed",
+	Desc = "Drag to change the value",
+	Min = 16,
+	Max = 100,
+	Default = 16,
+	Step = 1,
+	Suffix = "",
+	Callback = function(value)
+		print("Slider:", value)
+	end,
+})
+
+Combat:Section("Appearance")
+
+Combat:ColorPicker({
+	Title = "ESP Color",
+	Desc = "Click to open the picker",
+	Default = Color3.fromRGB(255, 80, 80),
+	Callback = function(color)
+		print("Color:", color)
+	end,
+})
+
+Combat:Toggle({
+	Title = "Another Option",
+	Callback = function(state) print("Option:", state) end,
+})
+
+-- Loads the auto-load config (also happens by itself 1.5 s after the window is created).
+Window:AutoLoad()
 
 return Library
- 
